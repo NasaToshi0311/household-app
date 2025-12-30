@@ -1,0 +1,47 @@
+# Docker Compose の設定ファイル
+# このファイル1つで「DB + API」をまとめて起動できる
+
+services:
+  # =========================
+  # データベース（PostgreSQL）
+  # =========================
+  db:
+    image: postgres:16 # PostgreSQLの公式イメージ（バージョン16）を使う
+    container_name: household-db # コンテナの名前（docker ps で見やすくする）
+
+    # PostgreSQLの初期設定
+    environment:
+      POSTGRES_DB: household # 作成されるDB名
+      POSTGRES_USER: household # DBに接続するユーザー名
+      POSTGRES_PASSWORD: household # そのユーザーのパスワード
+    volumes:
+      - db-data:/var/lib/postgresql/data # コンテナ内のDB保存場所を、名前付きボリュームに保存
+    ports:
+      - "5432:5432" # PCの5432 → コンテナの5432
+
+  # =========================
+  # API（FastAPI想定）
+  # =========================
+  api:
+    # 今のディレクトリにある Dockerfile を使ってイメージを作る
+    build: .
+    container_name: household-api     # コンテナの名前（docker ps で見やすくする）
+    depends_on: # DBコンテナが先に起動してからAPIを起動する
+      - db
+    volumes:     # ソースコードの共有設定
+      # PCのカレントディレクトリを、コンテナ内 /code にマウント
+      # → コード変更が即反映される（開発用）
+      - .:/code
+
+    # APIの公開ポート
+    ports:
+      - "8000:8000" # PCの http://localhost:8000 でAPIにアクセスできる
+
+    environment: # API用の環境変数
+      DATABASE_URL: postgresql+psycopg://household:household@db:5432/household # DB接続URL
+
+# =========================
+# ボリューム定義
+# =========================
+volumes:
+  db-data: # PostgreSQLのデータ保存用ボリューム
