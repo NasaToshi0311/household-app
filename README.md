@@ -40,6 +40,7 @@ docker compose down
 
 # ２．DB操作・確認
 # DBに入る（psql）
+cd server
 docker compose exec db psql -U household -d household
 # テーブル一覧
 \dt
