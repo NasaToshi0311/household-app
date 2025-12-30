@@ -33,3 +33,28 @@ docker compose up -d
 cd client
 npm install
 npm run dev
+
+## ディレクトリ構成
+household-app/
+├─ client/        # スマホ用フロントエンド（React）
+├─ server/        # FastAPI + PostgreSQL（Docker）
+├─ docs/          # 設計メモなど
+└─ README.md
+
+## 使い方
+1. スマホでフロントエンドにアクセス
+2. 支出を入力（オフライン可）
+3. 「同期する」を押してPCのAPIに送信
+4. PC側で集計画面を確認
+
+## 注意点
+- PCとスマホは同一ネットワーク（テザリング可）で接続する
+- 初回はAPIのURLを入力して保存する
+- DBデータはローカル環境のため、定期的にバックアップを取る
+
+## DBバックアップ
+PostgreSQLのバックアップは OneDrive に保存する。
+
+```powershell
+cd server
+docker compose exec -T db pg_dump -U household household > expenses_YYYY-MM-DD.sql
