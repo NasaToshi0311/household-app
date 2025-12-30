@@ -25,14 +25,54 @@
 
 ## 起動方法（開発）
 ```bash
-# backend
+# １．Docker、サーバー系
+# Docker起動（DB・APIを立ち上げる）
 cd server
 docker compose up -d
+# 起動状態の確認
+docker compose ps
+# 再起動（設定変更後）
+docker compose restart api
+# ログ確認（エラー調査）
+docker compose logs -f api
+# 停止
+docker compose down
 
-# frontend
+# ２．DB操作・確認
+# DBに入る（psql）
+docker compose exec db psql -U household -d household
+# テーブル一覧
+\dt
+# テーブル構造
+\d expenses
+# データ確認
+SELECT * FROM expenses ORDER BY date DESC LIMIT 10;
+
+# ３．フロントエンド
+# 開発サーバー起動
 cd client
-npm install
 npm run dev
+#パッケージ追加後
+npm install
+
+# ４．バックアップ
+# DBバックアップ作成
+cd server
+docker compose exec -T db pg_dump -U household household > expenses_YYYY-MM-DD.sql
+# 復元(戻したいファイル名を記載)
+docker compose exec -T db psql -U household -d household < expenses_YYYY-MM-DD.sql
+
+# ５．Git
+# 変更確認
+git status
+# 差分確認（qで終了）
+git diff
+# 変更を保存
+git add .
+git commit -m "message"
+# GitHubに反映
+git push
+```
 
 ## ディレクトリ構成
 household-app/
