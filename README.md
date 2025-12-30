@@ -23,9 +23,10 @@
 - カテゴリ別集計
 - 明細一覧表示
 
-## 起動方法（開発）
-```bash
+## コマンド等
+
 # １．Docker、サーバー系
+```bash
 # Docker起動（DB・APIを立ち上げる）
 cd server
 docker compose up -d
@@ -37,8 +38,10 @@ docker compose restart api
 docker compose logs -f api
 # 停止
 docker compose down
+```
 
 # ２．DB操作・確認
+```bash
 # DBに入る（psql）
 cd server
 docker compose exec db psql -U household -d household
@@ -48,22 +51,28 @@ docker compose exec db psql -U household -d household
 \d expenses
 # データ確認
 SELECT * FROM expenses ORDER BY date DESC LIMIT 10;
+```
 
 # ３．フロントエンド
+```bash
 # 開発サーバー起動
 cd client
 npm run dev
 #パッケージ追加後
 npm install
+```
 
 # ４．バックアップ
+```bash
 # DBバックアップ作成
 cd server
 docker compose exec -T db pg_dump -U household household > expenses_YYYY-MM-DD.sql
 # 復元(戻したいファイル名を記載)
 docker compose exec -T db psql -U household -d household < expenses_YYYY-MM-DD.sql
+```
 
 # ５．Git
+```bash
 # 変更確認
 git status
 # 差分確認（qで終了）
@@ -76,11 +85,11 @@ git push
 ```
 
 ## ディレクトリ構成
-household-app/
-├─ client/        # スマホ用フロントエンド（React）
-├─ server/        # FastAPI + PostgreSQL（Docker）
-├─ docs/          # 設計メモなど
-└─ README.md
+- household-app/
+- ├─ client/        # スマホ用フロントエンド（React）
+- ├─ server/        # FastAPI + PostgreSQL（Docker）
+- ├─ docs/          # 設計メモなど
+- └─ README.md
 
 ## 使い方
 1. スマホでフロントエンドにアクセス
