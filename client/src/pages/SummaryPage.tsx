@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useOnline } from "../hooks/useOnline";
 
 type Summary = { start: string; end: string; total: number };
 type ByCategory = { category: string; total: number };
@@ -36,6 +37,9 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [byCategory, setByCategory] = useState<ByCategory[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+
+  const online = useOnline();
+
 
   const api = baseUrl.replace(/\/$/, "");
 
@@ -247,13 +251,15 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
 
                     <button
                       onClick={() => deleteExpense(e.id)}
+                      disabled={loading || !e.id || !online}
                       style={{
                         padding: "6px 10px",
                         borderRadius: 10,
-                        border: "1px solid #fca5a5",
-                        background: "#fee2e2",
-                        color: "#b91c1c",
+                        border: "1px solid #ddd",
+                        background: "#fff",
                         fontSize: 12,
+                        opacity: loading || !online ? 0.5 : 1,
+                        cursor: loading || !online ? "not-allowed" : "pointer",
                       }}
                     >
                       削除
