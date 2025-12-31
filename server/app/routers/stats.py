@@ -16,7 +16,7 @@ def monthly_stats(
     start = date(y, m, 1) # 開始日  start of the month
     end = date(y + 1, 1, 1) if m == 12 else date(y, m + 1, 1) # 終了日  end of the month
 
-    base_where = (Expense.date >= start, Expense.date < end) # 条件
+    base_where = (Expense.date >= start, Expense.date < end, Expense.deleted_at.is_(None)) # 条件
 
     total = db.execute(
         select(func.coalesce(func.sum(Expense.amount), 0)).where(*base_where)

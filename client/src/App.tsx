@@ -34,13 +34,12 @@ export default function App() {
       const latest = await getAllPending();
       if (latest.length === 0) {
         alert("未送信がありません");
-        return;
+      } else {
+        const result = await syncExpenses(latest);
+        await removePending(result.ok_uuids);
+        await refresh();
+        alert(`同期完了（成功 ${result.ok_uuids.length} / 失敗 ${result.ng_uuids.length}）`);
       }
-
-      await syncExpenses(latest);
-      await removePending(latest.map((i) => i.client_uuid));
-      await refresh();
-      alert("同期完了");
     } catch (e: any) {
       if (e?.name === "AbortError") {
         alert("同期失敗: タイムアウト");
@@ -94,7 +93,7 @@ export default function App() {
             <div style={S.card}>
               <ExpenseForm
                 onAdd={async (item) => {
-                  await addPending(item);
+                  await addPending({ ...item, op: "upsert" });
                   await refresh();
                 }}
               />

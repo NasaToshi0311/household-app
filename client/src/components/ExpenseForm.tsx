@@ -19,13 +19,20 @@ export default function ExpenseForm({ onAdd }: Props) {
       return;
     }
 
+    const amountNum = Number(amount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      alert("金額は0より大きい数値を入力してください");
+      return;
+    }
+
     const item: PendingExpense = {
       client_uuid: uuidv4(),
       date: new Date().toISOString().slice(0, 10),
-      amount: Number(amount),
+      amount: amountNum,
       category,
-      note,
+      note: note || undefined,
       paid_by: paidBy,
+      op: "upsert",
     };
 
     await onAdd(item);

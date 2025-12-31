@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.db import Base, engine
@@ -10,11 +11,17 @@ from app.routers.summary import router as summary_router
 
 app = FastAPI() # FastAPIのインスタンスを作成
 
-origins = [
-    "http://10.76.108.202:5173",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
+# CORS設定を環境変数から読み込む（デフォルト値あり）
+cors_origins_env = os.environ.get("CORS_ORIGINS", "")
+if cors_origins_env:
+    origins = [origin.strip() for origin in cors_origins_env.split(",")]
+else:
+    # デフォルト値（開発環境用）
+    origins = [
+        "http://10.76.108.202:5173",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
 
 
 app.add_middleware(

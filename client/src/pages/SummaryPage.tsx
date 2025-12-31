@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useOnline } from "../hooks/useOnline";
+import { fetchWithTimeout } from "../api/fetch";
 
 type Summary = { start: string; end: string; total: number };
 type ByCategory = { category: string; total: number };
@@ -43,7 +44,7 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
 
   const api = baseUrl.replace(/\/$/, "");
 
-  async function fetchAll() {
+  const fetchAll = useCallback(async () => {
     if (!api) {
       setError("同期先URLを入力してから集計してね");
       return;
@@ -55,9 +56,9 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
       const qs = `start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
 
       const [sRes, cRes, eRes] = await Promise.all([
-        fetch(`${api}/summary?${qs}`),
-        fetch(`${api}/summary/by-category?${qs}`),
-        fetch(`${api}/summary/expenses?${qs}&limit=50&offset=0`),
+        fetchWithTimeout(`${api}/summary?${qs}`, {}, 10000),
+        fetchWithTimeout(`${api}/summary/by-category?${qs}`, {}, 10000),
+        fetchWithTimeout(`${api}/summary/expenses?${qs}&limit=50&offset=0`, {}, 10000),
       ]);
 
       if (!sRes.ok) throw new Error("合計の取得に失敗");
@@ -76,7 +77,7 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [api, start, end]);
 
   async function deleteExpense(id?: number) {
     if (!api) {
@@ -91,19 +92,18 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${api}/expenses/${id}`, { method: "DELETE" });
+      const res = await fetchWithTimeout(`${api}/expenses/${id}`, { method: "DELETE" }, 10000);
       if (!res.ok) {
         const text = await res.text();
         throw new Error(`削除に失敗: HTTP ${res.status}\n${text}`);
       }
   
-      // 画面だけ即反映（気持ちよさ優先）
-      setExpenses((prev) => prev.filter((x) => x.id !== id));
-  
-      // 集計も変わるので取り直す（確実）
+      // 削除成功後に画面を更新
       await fetchAll();
     } catch (err: any) {
       setError(err?.message ?? "削除エラー");
+      // エラー時は画面を再取得して整合性を保つ
+      await fetchAll();
     } finally {
       setLoading(false);
     }
@@ -112,9 +112,10 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
 
   // baseUrl が入ったら自動で1回取得（QRから入ってきた時に便利）
   useEffect(() => {
-    if (api) fetchAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [api]);
+    if (api) {
+      fetchAll();
+    }
+  }, [api, fetchAll]);
 
   function setThisMonth() {
     const d = new Date();

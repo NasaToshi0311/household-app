@@ -7,6 +7,7 @@ export type PendingExpense = {
   category: string;
   note?: string;
   paid_by: "me" | "her";
+  op: "upsert" | "delete";
 };
 
 export const dbPromise = openDB("household-db", 1, {
@@ -27,9 +28,10 @@ export async function getAllPending(): Promise<PendingExpense[]> {
 
 export async function removePending(ids: string[]) {
   const db = await dbPromise;
-  for (const id of ids) {
-    await db.delete("pending", id);
-  }
+  const tx = db.transaction("pending", "readwrite");
+  const store = tx.objectStore("pending");
+  await Promise.all(ids.map((id) => store.delete(id)));
+  await tx.done;
 }
 
 export async function removeOnePending(id: string) {

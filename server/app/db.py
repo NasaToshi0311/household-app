@@ -14,5 +14,8 @@ def get_db(): # セッションを取得する関数
     db = SessionLocal() # セッションを作成
     try:
         yield db # セッションを返す
+    except Exception:
+        db.rollback() # エラー時はロールバック
+        raise
     finally:
         db.close() # セッションをクローズ
