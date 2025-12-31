@@ -74,6 +74,38 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
     }
   }
 
+  async function deleteExpense(id?: number) {
+    if (!api) {
+      setError("同期先URLを入力してね");
+      return;
+    }
+    if (!id) return;
+  
+    const ok = confirm("この明細を削除しますか？（論理削除）");
+    if (!ok) return;
+  
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${api}/expenses/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`削除に失敗: HTTP ${res.status}\n${text}`);
+      }
+  
+      // 画面だけ即反映（気持ちよさ優先）
+      setExpenses((prev) => prev.filter((x) => x.id !== id));
+  
+      // 集計も変わるので取り直す（確実）
+      await fetchAll();
+    } catch (err: any) {
+      setError(err?.message ?? "削除エラー");
+    } finally {
+      setLoading(false);
+    }
+  }
+  
+
   // baseUrl が入ったら自動で1回取得（QRから入ってきた時に便利）
   useEffect(() => {
     if (api) fetchAll();
@@ -155,7 +187,14 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
         <div style={{ fontSize: 12, color: "#666" }}>
           {start} 〜 {end}
         </div>
-        <div style={{ fontSize: 28, fontWeight: 800, marginTop: 6 }}>
+        <div
+          style={{
+            fontSize: 28,
+            fontWeight: 800,
+            marginTop: 6,
+            color: "#2563eb", // 青（安心・基準色）
+          }}
+        >
           ¥{totalText}
         </div>
         <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>合計（支出）</div>
@@ -188,14 +227,38 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
         ) : (
           <div style={{ display: "grid", gap: 8 }}>
             {expenses.map((e) => (
-              <div key={e.id ?? `${e.date}-${e.amount}-${e.category}`} style={{ borderTop: "1px solid #eee", paddingTop: 8 }}>
+              <div
+                key={e.id ?? `${e.date}-${e.amount}-${e.category}`}
+                style={{
+                  padding: 10,
+                  borderRadius: 12,
+                  background: "#fafafa",
+                  border: "1px solid #eee",
+                }}
+              >
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                   <div>
                     <div style={{ fontSize: 12, color: "#666" }}>{e.date}</div>
                     <div style={{ fontWeight: 700 }}>{e.category}</div>
                     {e.note ? <div style={{ fontSize: 12, color: "#666" }}>{e.note}</div> : null}
                   </div>
-                  <div style={{ fontWeight: 800 }}>¥{e.amount.toLocaleString("ja-JP")}</div>
+                  <div style={{ display: "grid", justifyItems: "end", gap: 6 }}>
+                    <div style={{ fontWeight: 800 }}>¥{e.amount.toLocaleString("ja-JP")}</div>
+
+                    <button
+                      onClick={() => deleteExpense(e.id)}
+                      style={{
+                        padding: "6px 10px",
+                        borderRadius: 10,
+                        border: "1px solid #fca5a5",
+                        background: "#fee2e2",
+                        color: "#b91c1c",
+                        fontSize: 12,
+                      }}
+                    >
+                      削除
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

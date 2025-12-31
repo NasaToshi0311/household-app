@@ -2,32 +2,39 @@ import { useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { addPending, getAllPending, removePending, removeOnePending } from "./db";
 import type { PendingExpense } from "./db";
+import { getApiBaseUrl, setApiBaseUrl } from "./config/api";
+import { useOnline } from "./hooks/useOnline";
 import SummaryPage from "./pages/SummaryPage";
+import { syncExpenses } from "./api/expenses";
 
 export default function App() {
   const [items, setItems] = useState<PendingExpense[]>([]);
   const [baseUrl, setBaseUrl] = useState<string>("");
   const [tab, setTab] = useState<"input" | "summary">("input");
-
+  const online = useOnline();
+  const [syncing, setSyncing] = useState(false);
   // 入力用state
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("食費");
   const [note, setNote] = useState("");
   const [paidBy, setPaidBy] = useState<"me" | "her">("me");
+  
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+  
     if (params.get("from") === "qr") {
       const api = window.location.origin.replace(/:\d+$/, ":8000");
       setBaseUrl(api);
-      localStorage.setItem("baseUrl", api);
+      setApiBaseUrl(api);
     } else {
-      const saved = localStorage.getItem("baseUrl");
+      const saved = getApiBaseUrl();
       if (saved) setBaseUrl(saved);
     }
-
+  
     refresh();
   }, []);
+  
 
   async function refresh() {
     setItems(await getAllPending());
@@ -54,41 +61,43 @@ export default function App() {
     refresh();
   }
 
-  async function sync() {
+  async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 8000) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+  
     try {
-      if (!baseUrl) {
-        alert("同期先URLを入力してください");
-        return;
-      }
+      return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+      clearTimeout(id);
+    }
+  }
 
+  async function sync() {
+    if (syncing) return;
+    setSyncing(true);
+  
+    try {
       const latest = await getAllPending();
       if (latest.length === 0) {
         alert("未送信がありません");
         return;
       }
-
-      const api = baseUrl.replace(/\/$/, "");
-      const url = `${api}/sync/expenses`;
-
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: latest }),
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        alert(`同期失敗: HTTP ${res.status}\n${text}`);
-        return;
-      }
-
-      await removePending(latest.map((i) => i.client_uuid));
+  
+      await syncExpenses(latest);
+      await removePending(latest.map(i => i.client_uuid));
       await refresh();
       alert("同期完了");
     } catch (e: any) {
-      alert(`同期失敗(通信エラー): ${e?.message ?? e}`);
+      if (e?.name === "AbortError") {
+        alert("同期失敗: タイムアウト");
+      } else {
+        alert(e?.message ?? "同期失敗");
+      }
+    } finally {
+      setSyncing(false);
     }
   }
+  
 
   const tabBtn = (key: "input" | "summary", label: string) => (
     <button
@@ -118,13 +127,29 @@ export default function App() {
           value={baseUrl}
           onChange={(e) => {
             setBaseUrl(e.target.value);
-            localStorage.setItem("baseUrl", e.target.value);
+            setApiBaseUrl(e.target.value);
           }}
           style={{ width: "100%", padding: 12, borderRadius: 12, border: "1px solid #ddd" }}
         />
-        <button onClick={sync} style={{ width: "100%", marginTop: 8, padding: 12, borderRadius: 12 }}>
-          同期する（未送信 {items.length} 件）
+        <button
+          onClick={sync}
+          disabled={!online || syncing}
+          style={{
+            width: "100%",
+            marginTop: 8,
+            padding: 12,
+            borderRadius: 12,
+            opacity: online && !syncing ? 1 : 0.5,
+          }}
+        >
+          {syncing ? "同期中..." : `同期する（未送信 ${items.length} 件）`}
         </button>
+
+        {!online && (
+          <div style={{ fontSize: 12, color: "#c00", marginTop: 6 }}>
+            オフライン中：帰宅後に同期できます
+          </div>
+        )}
       </div>
 
       {/* タブ */}

@@ -40,7 +40,9 @@ def get_summary(
         SELECT COALESCE(SUM(amount), 0) AS total
         FROM expenses
         WHERE date >= :start AND date <= :end
+        AND deleted_at IS NULL
     """)
+
     row = db.execute(sql, {"start": start, "end": end}).first()
     total = int(row.total) if row and row.total is not None else 0
     return SummaryResponse(start=start, end=end, total=total)
@@ -56,9 +58,11 @@ def get_summary_by_category(
         SELECT category, COALESCE(SUM(amount), 0) AS total
         FROM expenses
         WHERE date >= :start AND date <= :end
+        AND deleted_at IS NULL
         GROUP BY category
         ORDER BY total DESC
     """)
+
     rows = db.execute(sql, {"start": start, "end": end}).all()
     return [CategorySummaryItem(category=r.category, total=int(r.total)) for r in rows]
 
@@ -75,9 +79,11 @@ def list_expenses(
         SELECT id, date, amount, category, note, paid_by
         FROM expenses
         WHERE date >= :start AND date <= :end
+        AND deleted_at IS NULL
         ORDER BY date DESC, id DESC
         LIMIT :limit OFFSET :offset
     """)
+
     rows = db.execute(
         sql,
         {"start": start, "end": end, "limit": limit, "offset": offset},
