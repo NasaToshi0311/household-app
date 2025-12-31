@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getApiBaseUrl, setApiBaseUrl } from "../config/api";
+import * as S from "../ui/styles";
 
 type Props = {
   itemsCount: number;
@@ -9,7 +10,13 @@ type Props = {
   onBaseUrlChange?: (url: string) => void;
 };
 
-export default function ApiUrlBox({ itemsCount, online, syncing, onSync, onBaseUrlChange }: Props) {
+export default function ApiUrlBox({
+  itemsCount,
+  online,
+  syncing,
+  onSync,
+  onBaseUrlChange,
+}: Props) {
   const [baseUrl, setBaseUrl] = useState("");
 
   useEffect(() => {
@@ -30,37 +37,48 @@ export default function ApiUrlBox({ itemsCount, online, syncing, onSync, onBaseU
   }, [onBaseUrlChange]);
 
   return (
-    <div style={{ marginTop: 12 }}>
-      <div style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>同期先URL（PCのIP）</div>
+    <div style={S.card}>
+      {/* タイトル */}
+      <div style={{ fontWeight: 700, marginBottom: 8 }}>同期設定</div>
 
-      <input
-        placeholder="http://192.168.x.x:8000"
-        value={baseUrl}
-        onChange={(e) => {
-          setBaseUrl(e.target.value);
-          setApiBaseUrl(e.target.value);
-          onBaseUrlChange?.(e.target.value);
-        }}
-        style={{ width: "100%", padding: 12, borderRadius: 12, border: "1px solid #ddd" }}
-      />
+      {/* URL入力 */}
+      <div style={{ marginBottom: 8 }}>
+        <div style={S.label}>同期先URL（PCのIP）</div>
+        <input
+          placeholder="http://192.168.x.x:8000"
+          value={baseUrl}
+          onChange={(e) => {
+            const v = e.target.value;
+            setBaseUrl(v);
+            setApiBaseUrl(v);
+            onBaseUrlChange?.(v);
+          }}
+          style={S.input}
+        />
+      </div>
 
+      {/* 同期ボタン */}
       <button
         onClick={onSync}
         disabled={!online || syncing}
         style={{
+          ...(online && !syncing ? S.btnPrimary : S.btn),
           width: "100%",
-          marginTop: 8,
-          padding: 12,
-          borderRadius: 12,
           opacity: online && !syncing ? 1 : 0.5,
         }}
       >
         {syncing ? "同期中..." : `同期する（未送信 ${itemsCount} 件）`}
       </button>
 
+      {/* 状態表示 */}
       {!online && (
-        <div style={{ fontSize: 12, color: "#c00", marginTop: 6 }}>
-          オフライン中：帰宅後に同期できます
+        <div style={{ ...S.muted, color: "#c00", marginTop: 8 }}>
+          ● オフライン中：帰宅後に同期できます
+        </div>
+      )}
+      {online && !syncing && itemsCount === 0 && (
+        <div style={{ ...S.muted, marginTop: 8 }}>
+          未送信データはありません
         </div>
       )}
     </div>

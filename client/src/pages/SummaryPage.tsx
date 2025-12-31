@@ -141,7 +141,7 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
   const totalText = (summary?.total ?? 0).toLocaleString("ja-JP");
 
   return (
-    <div style={{ maxWidth: 520, margin: "0 auto", padding: 16, fontFamily: "system-ui" }}>
+    <div style={{ maxWidth: 520, margin: "0 auto", padding: 8, fontFamily: "system-ui" }}>
       <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>集計</h2>
 
       {!api && (
@@ -150,28 +150,34 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
         </div>
       )}
 
-      <div style={{ display: "grid", gap: 8, marginBottom: 12 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 8,
+          marginBottom: 12,
+        }}
+      >
         <div style={{ display: "grid", gap: 6 }}>
-          <label style={{ fontSize: 12, color: "#555" }}>開始日</label>
+          <label style={{ fontSize: 16, color: "#555" }}>開始日</label>
           <input
             type="date"
             value={start}
             onChange={(e) => setStart(e.target.value)}
-            style={{ padding: 12, borderRadius: 10, border: "1px solid #ddd" }}
+            style={{ width: "100%", padding: 12, borderRadius: 10, border: "1px solid #ddd" }}
           />
         </div>
-
         <div style={{ display: "grid", gap: 6 }}>
-          <label style={{ fontSize: 12, color: "#555" }}>終了日</label>
+          <label style={{ fontSize: 16, color: "#555" }}>終了日</label>
           <input
             type="date"
             value={end}
             onChange={(e) => setEnd(e.target.value)}
-            style={{ padding: 12, borderRadius: 10, border: "1px solid #ddd" }}
+            style={{ width: "100%", padding: 12, borderRadius: 10, border: "1px solid #ddd" }}
           />
         </div>
 
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button onClick={setThisMonth} style={btnStyle}>今月</button>
           <button onClick={setLastMonth} style={btnStyle}>先月</button>
           <button onClick={setLast7Days} style={btnStyle}>直近7日</button>

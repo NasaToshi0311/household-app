@@ -7,6 +7,8 @@ import { syncExpenses } from "./api/expenses";
 import ApiUrlBox from "./components/ApiUrlBox";
 import PendingList from "./components/PendingList";
 import ExpenseForm from "./components/ExpenseForm";
+import * as S from "./ui/styles.ts";
+
 
 export default function App() {
   const [items, setItems] = useState<PendingExpense[]>([]);
@@ -67,18 +69,19 @@ export default function App() {
   );
 
   return (
-    <div style={{ padding: 16, maxWidth: 520, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 20, fontWeight: 800 }}>家計簿（スマホ）</h1>
+    <div style={S.page}>
+      <h1 style={S.h1}>家計簿（スマホ）</h1>
+      <div style={S.card}>
+        <ApiUrlBox
+          itemsCount={items.length}
+          online={online}
+          syncing={syncing}
+          onSync={sync}
+          onBaseUrlChange={(url) => setApiBaseUrlState(url)}
+        />
+      </div>
 
-      <ApiUrlBox
-        itemsCount={items.length}
-        online={online}
-        syncing={syncing}
-        onSync={sync}
-        onBaseUrlChange={(url) => setApiBaseUrlState(url)}
-      />
-
-      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+      <div style={{ ...S.row, marginTop: 12 }}>
         {tabBtn("input", "入力")}
         {tabBtn("summary", "集計")}
       </div>
@@ -88,24 +91,27 @@ export default function App() {
           <SummaryPage baseUrl={apiBaseUrl} />
         ) : (
           <>
-            <ExpenseForm
-              onAdd={async (item) => {
-                await addPending(item);
-                await refresh();
-              }}
-            />
+            <div style={S.card}>
+              <ExpenseForm
+                onAdd={async (item) => {
+                  await addPending(item);
+                  await refresh();
+                }}
+              />
+            </div>
 
             <hr style={{ margin: "16px 0" }} />
-
-            <h2>未送信</h2>
-            <PendingList
-              items={items}
-              onDeleteOne={async (id) => {
-                if (!confirm("この未送信データを削除しますか？")) return;
-                await removeOnePending(id);
-                await refresh();
-              }}
-            />
+            <div style={S.card}>
+              <h2>未送信</h2>
+              <PendingList
+                items={items}
+                onDeleteOne={async (id) => {
+                  if (!confirm("この未送信データを削除しますか？")) return;
+                  await removeOnePending(id);
+                  await refresh();
+                }}
+              />
+            </div>
           </>
         )}
       </div>

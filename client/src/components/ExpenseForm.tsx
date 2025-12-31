@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { PendingExpense } from "../db";
+import { payerLabel, type PaidBy } from "../constants/payer";
 
 type Props = {
   onAdd: (item: PendingExpense) => Promise<void> | void;
@@ -10,7 +11,7 @@ export default function ExpenseForm({ onAdd }: Props) {
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("食費");
   const [note, setNote] = useState("");
-  const [paidBy, setPaidBy] = useState<"me" | "her">("me");
+  const [paidBy, setPaidBy] = useState<PaidBy>("me");
 
   async function handleAdd() {
     if (!amount) {
@@ -28,8 +29,6 @@ export default function ExpenseForm({ onAdd }: Props) {
     };
 
     await onAdd(item);
-
-    // 入力欄だけクリア（カテゴリ/支払者は残す方が入力が楽）
     setAmount("");
     setNote("");
   }
@@ -68,12 +67,12 @@ export default function ExpenseForm({ onAdd }: Props) {
       <div style={{ marginBottom: 8 }}>
         <label>
           <input type="radio" checked={paidBy === "me"} onChange={() => setPaidBy("me")} />
-          自分
+          {payerLabel.me}
         </label>
         {"  "}
         <label>
           <input type="radio" checked={paidBy === "her"} onChange={() => setPaidBy("her")} />
-          彼女
+          {payerLabel.her}
         </label>
       </div>
 
