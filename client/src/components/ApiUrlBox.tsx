@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { getApiBaseUrl, setApiBaseUrl } from "../config/api";
 import * as S from "../ui/styles";
 
@@ -18,6 +18,12 @@ export default function ApiUrlBox({
   onBaseUrlChange,
 }: Props) {
   const [baseUrl, setBaseUrl] = useState("");
+  const onBaseUrlChangeRef = useRef(onBaseUrlChange);
+  
+  // 最新のコールバックを保持
+  useEffect(() => {
+    onBaseUrlChangeRef.current = onBaseUrlChange;
+  }, [onBaseUrlChange]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -26,15 +32,16 @@ export default function ApiUrlBox({
       const api = window.location.origin.replace(/:\d+$/, ":8000");
       setBaseUrl(api);
       setApiBaseUrl(api);
-      onBaseUrlChange?.(api);
+      onBaseUrlChangeRef.current?.(api);
     } else {
       const saved = getApiBaseUrl();
       if (saved) {
         setBaseUrl(saved);
-        onBaseUrlChange?.(saved);
+        onBaseUrlChangeRef.current?.(saved);
       }
     }
-  }, [onBaseUrlChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // マウント時のみ実行
 
   return (
     <div style={S.card}>

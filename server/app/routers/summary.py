@@ -1,6 +1,6 @@
 from datetime import date
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -36,6 +36,9 @@ def get_summary(
     end: date = Query(...),
     db: Session = Depends(get_db),
 ):
+    if start > end:
+        raise HTTPException(status_code=400, detail="Start date must be less than or equal to end date")
+    
     sql = text("""
         SELECT COALESCE(SUM(amount), 0) AS total
         FROM expenses
@@ -54,6 +57,9 @@ def get_summary_by_category(
     end: date = Query(...),
     db: Session = Depends(get_db),
 ):
+    if start > end:
+        raise HTTPException(status_code=400, detail="Start date must be less than or equal to end date")
+    
     sql = text("""
         SELECT category, COALESCE(SUM(amount), 0) AS total
         FROM expenses
@@ -75,6 +81,9 @@ def list_expenses(
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
+    if start > end:
+        raise HTTPException(status_code=400, detail="Start date must be less than or equal to end date")
+    
     sql = text("""
         SELECT id, date, amount, category, note, paid_by
         FROM expenses

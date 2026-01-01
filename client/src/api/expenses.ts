@@ -28,5 +28,5 @@ export async function syncExpenses(items: PendingExpense[]) {
     throw new Error(`HTTP ${res.status}: ${text}`);
   }
 
-  return res.json() as Promise<{ ok_uuids: string[]; ng_uuids: string[] }>;
+  return (await res.json()) as { ok_uuids: string[]; ng_uuids: string[] };
 }

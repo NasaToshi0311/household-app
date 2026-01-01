@@ -1,5 +1,5 @@
 from datetime import date
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 from app.db import get_db
@@ -13,8 +13,13 @@ def monthly_stats(
     db: Session = Depends(get_db), # セッション
 ):
     y, m = map(int, month.split("-")) # 年月を分割  year, month
-    start = date(y, m, 1) # 開始日  start of the month
-    end = date(y + 1, 1, 1) if m == 12 else date(y, m + 1, 1) # 終了日  end of the month
+    if not (1 <= m <= 12):
+        raise HTTPException(status_code=400, detail="Invalid month. Month must be between 01 and 12")
+    try:
+        start = date(y, m, 1) # 開始日  start of the month
+        end = date(y + 1, 1, 1) if m == 12 else date(y, m + 1, 1) # 終了日  end of the month
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid date: {e}")
 
     base_where = (Expense.date >= start, Expense.date < end, Expense.deleted_at.is_(None)) # 条件
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { addPending, getAllPending, removePending, removeOnePending } from "./db";
 import type { PendingExpense } from "./db";
 import { useOnline } from "./hooks/useOnline";
@@ -18,13 +18,13 @@ export default function App() {
   const online = useOnline();
   const [syncing, setSyncing] = useState(false);
 
-  useEffect(() => {
-    refresh();
+  const refresh = useCallback(async () => {
+    setItems(await getAllPending());
   }, []);
 
-  async function refresh() {
-    setItems(await getAllPending());
-  }
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   async function sync() {
     if (syncing) return;

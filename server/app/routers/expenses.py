@@ -10,8 +10,13 @@ router = APIRouter(prefix="/expenses", tags=["expenses"]) # 支出ルーター
 @router.get("") # 支出を一覧表示するエンドポイント  GET /expenses
 def list_expenses(month: str = Query(..., pattern=r"^\d{4}-\d{2}$"), db: Session = Depends(get_db)): # 支出を一覧表示するエンドポイント
     y, m = map(int, month.split("-")) # 年月を分割  year, month
-    start = date(y, m, 1) # 開始日
-    end = date(y + 1, 1, 1) if m == 12 else date(y, m + 1, 1) # 終了日
+    if not (1 <= m <= 12):
+        raise HTTPException(status_code=400, detail="Invalid month. Month must be between 01 and 12")
+    try:
+        start = date(y, m, 1) # 開始日
+        end = date(y + 1, 1, 1) if m == 12 else date(y, m + 1, 1) # 終了日
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid date: {e}")
 
     stmt = ( # ステートメントを作成
         select(Expense) # 支出モデルを選択
@@ -33,14 +38,19 @@ def list_expenses(month: str = Query(..., pattern=r"^\d{4}-\d{2}$"), db: Session
 
 @router.delete("/{expense_id}")
 def soft_delete_expense(expense_id: int, db: Session = Depends(get_db)):
-    exp = (
-        db.query(Expense)
-        .filter(Expense.id == expense_id, Expense.deleted_at.is_(None))
-        .first()
+    stmt = (
+        select(Expense)
+        .where(Expense.id == expense_id, Expense.deleted_at.is_(None))
     )
+    exp = db.execute(stmt).scalar_one_or_none()
+    
     if not exp:
         raise HTTPException(status_code=404, detail="Not Found")
 
-    exp.deleted_at = datetime.now(timezone.utc)
-    db.commit()
-    return {"ok": True, "id": expense_id}
+    try:
+        exp.deleted_at = datetime.now(timezone.utc)
+        db.commit()
+        return {"ok": True, "id": expense_id}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete expense: {e}")

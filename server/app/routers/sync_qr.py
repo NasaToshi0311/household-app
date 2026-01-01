@@ -1,7 +1,7 @@
 import socket
 import qrcode
 from io import BytesIO
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 
 router = APIRouter(prefix="/sync", tags=["sync-qr"])
@@ -12,24 +12,36 @@ def get_lan_ip() -> str:
     try:
         s.connect(("8.8.8.8", 80)) # 8.8.8.8に接続
         return s.getsockname()[0] # ソケットの名前を取得
+    except (socket.error, OSError) as e:
+        raise HTTPException(status_code=503, detail=f"Failed to get LAN IP address: {e}")
     finally:
         s.close() # ソケットをクローズ
 
 @router.get("/url")
 def sync_url():
-    ip = get_lan_ip()
-    return {"base_url": f"http://{ip}:8000?from=qr"}
+    try:
+        ip = get_lan_ip()
+        return {"base_url": f"http://{ip}:8000?from=qr"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
 
 @router.get("/qr.png")
 def sync_qr_png():
-    ip = get_lan_ip()
-    url = f"http://{ip}:8000?from=qr"
+    try:
+        ip = get_lan_ip()
+        url = f"http://{ip}:8000?from=qr"
 
-    img = qrcode.make(url)
-    buf = BytesIO()
-    img.save(buf, format="PNG")
-    buf.seek(0)
-    return StreamingResponse(buf, media_type="image/png")
+        img = qrcode.make(url)
+        buf = BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+        return StreamingResponse(buf, media_type="image/png")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate QR code: {e}")
 
 @router.get("/page") # 同期ページを取得するエンドポイント
 def sync_page(): # 同期ページを取得するエンドポイント

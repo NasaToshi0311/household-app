@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
 import logging
@@ -12,8 +12,20 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/sync", tags=["sync"])
 
+# 一度に同期できる最大件数（DoS対策）
+MAX_SYNC_ITEMS = 1000
+
 @router.post("/expenses")
 def sync_expenses(payload: SyncExpensesRequest, db: Session = Depends(get_db)):
+    if not payload.items:
+        return {"ok_uuids": [], "ng_uuids": []}
+    
+    if len(payload.items) > MAX_SYNC_ITEMS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many items. Maximum {MAX_SYNC_ITEMS} items allowed per request"
+        )
+    
     ok_uuids: list[str] = []
     ng_uuids: list[str] = []
 

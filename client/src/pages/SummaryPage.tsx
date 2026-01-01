@@ -50,6 +50,12 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
       return;
     }
 
+    // 日付範囲のバリデーション
+    if (start > end) {
+      setError("開始日は終了日より前である必要があります");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {

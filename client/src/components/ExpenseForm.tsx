@@ -24,6 +24,15 @@ export default function ExpenseForm({ onAdd }: Props) {
       alert("金額は0より大きい数値を入力してください");
       return;
     }
+    if (amountNum > 1000000000) {
+      alert("金額は10億円以下で入力してください");
+      return;
+    }
+
+    if (note && note.length > 200) {
+      alert("メモは200文字以内で入力してください");
+      return;
+    }
 
     const item: PendingExpense = {
       client_uuid: uuidv4(),
