@@ -21,6 +21,11 @@ class CategorySummaryItem(BaseModel):
     total: int
 
 
+class PayerSummaryItem(BaseModel):
+    paid_by: Optional[str]
+    total: int
+
+
 class ExpenseItem(BaseModel):
     id: Optional[int] = None
     date: date
@@ -71,6 +76,28 @@ def get_summary_by_category(
 
     rows = db.execute(sql, {"start": start, "end": end}).all()
     return [CategorySummaryItem(category=r.category, total=int(r.total)) for r in rows]
+
+
+@router.get("/by-payer", response_model=List[PayerSummaryItem])
+def get_summary_by_payer(
+    start: date = Query(...),
+    end: date = Query(...),
+    db: Session = Depends(get_db),
+):
+    if start > end:
+        raise HTTPException(status_code=400, detail="Start date must be less than or equal to end date")
+    
+    sql = text("""
+        SELECT paid_by, COALESCE(SUM(amount), 0) AS total
+        FROM expenses
+        WHERE date >= :start AND date <= :end
+        AND deleted_at IS NULL
+        GROUP BY paid_by
+        ORDER BY total DESC
+    """)
+
+    rows = db.execute(sql, {"start": start, "end": end}).all()
+    return [PayerSummaryItem(paid_by=r.paid_by, total=int(r.total)) for r in rows]
 
 
 @router.get("/expenses", response_model=List[ExpenseItem])

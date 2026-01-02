@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { useOnline } from "../hooks/useOnline";
 import { fetchWithTimeout } from "../api/fetch";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { payerLabel } from "../constants/payer";
 
 type Summary = { start: string; end: string; total: number };
 type ByCategory = { category: string; total: number };
+type ByPayer = { paid_by: string | null; total: number };
 type Expense = {
   id?: number;
   date: string;
@@ -38,6 +40,7 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
 
   const [summary, setSummary] = useState<Summary | null>(null);
   const [byCategory, setByCategory] = useState<ByCategory[]>([]);
+  const [byPayer, setByPayer] = useState<ByPayer[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [confirmDialog, setConfirmDialog] = useState<{
     message: string;
@@ -66,22 +69,26 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
     try {
       const qs = `start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
 
-      const [sRes, cRes, eRes] = await Promise.all([
+      const [sRes, cRes, pRes, eRes] = await Promise.all([
         fetchWithTimeout(`${api}/summary?${qs}`, {}, 10000),
         fetchWithTimeout(`${api}/summary/by-category?${qs}`, {}, 10000),
+        fetchWithTimeout(`${api}/summary/by-payer?${qs}`, {}, 10000),
         fetchWithTimeout(`${api}/summary/expenses?${qs}&limit=50&offset=0`, {}, 10000),
       ]);
 
       if (!sRes.ok) throw new Error("合計の取得に失敗");
       if (!cRes.ok) throw new Error("カテゴリ別の取得に失敗");
+      if (!pRes.ok) throw new Error("支払者別の取得に失敗");
       if (!eRes.ok) throw new Error("明細の取得に失敗");
 
       const s: Summary = await sRes.json();
       const c: ByCategory[] = await cRes.json();
+      const p: ByPayer[] = await pRes.json();
       const e: Expense[] = await eRes.json();
 
       setSummary(s);
       setByCategory(c);
+      setByPayer(p);
       setExpenses(e);
     } catch (err: any) {
       setError(err?.message ?? "エラー");
@@ -281,11 +288,11 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
           <div style={{ display: "grid", gap: 8 }}>
             {byCategory.slice(0, 10).map((c, idx) => {
               const colors = [
-                "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-                "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
-                "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)",
-                "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
+                "#667eea",
+                "#f5576c",
+                "#4facfe",
+                "#43e97b",
+                "#fa709a",
               ];
               const color = colors[idx % colors.length];
               return (
@@ -304,12 +311,56 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
                   <div style={{ color: "#1f2937", fontWeight: 600 }}>{c.category}</div>
                   <div style={{ 
                     fontWeight: 700, 
-                    background: color,
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                    backgroundClip: "text",
+                    color: color,
                   }}>
                     ¥{c.total.toLocaleString("ja-JP")}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div style={{ height: 12 }} />
+
+      <div style={cardStyle}>
+        <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16, color: "#1f2937" }}>支払者別</div>
+        {byPayer.length === 0 ? (
+          <div style={{ color: "#9ca3af", fontSize: 14, fontStyle: "italic" }}>データなし</div>
+        ) : (
+          <div style={{ display: "grid", gap: 8 }}>
+            {byPayer.map((p, idx) => {
+              const colors = [
+                "#667eea",
+                "#f5576c",
+                "#4facfe",
+                "#43e97b",
+                "#fa709a",
+              ];
+              const color = colors[idx % colors.length];
+              const payerName = p.paid_by && (p.paid_by === "me" || p.paid_by === "her") 
+                ? payerLabel[p.paid_by] 
+                : p.paid_by ?? "未設定";
+              return (
+                <div 
+                  key={p.paid_by ?? "null"} 
+                  style={{ 
+                    display: "flex", 
+                    justifyContent: "space-between", 
+                    gap: 8,
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    background: "rgba(102, 126, 234, 0.05)",
+                    border: "1px solid rgba(102, 126, 234, 0.1)",
+                  }}
+                >
+                  <div style={{ color: "#1f2937", fontWeight: 600 }}>{payerName}</div>
+                  <div style={{ 
+                    fontWeight: 700, 
+                    color: color,
+                  }}>
+                    ¥{p.total.toLocaleString("ja-JP")}
                   </div>
                 </div>
               );
