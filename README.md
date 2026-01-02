@@ -162,6 +162,26 @@ git commit -m "message"
 git push
 ```
 
+## 本番環境への反映手順
+
+フロントエンド（React）を修正した場合は、以下の手順で本番環境に反映します。
+
+### フロントエンド修正時
+
+```bash
+# Reactを本番ビルド
+cd client
+npm run build
+
+# ビルド結果をサーバー側に反映
+cd ..
+xcopy client\dist server\static\dist /E /I /Y
+
+# APIコンテナを再起動（確実に反映させる）
+cd server
+docker compose restart api
+
+
 ## 注意点
 
 - PCとスマホは同一ネットワーク（テザリング可）で接続する必要があります

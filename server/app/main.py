@@ -7,9 +7,10 @@ from app.routers.expenses import router as expenses_router
 from app.routers.stats import router as stats_router
 from app.routers.sync_qr import router as sync_qr_router
 from app.routers.summary import router as summary_router
-
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI() # FastAPIのインスタンスを作成
+app.mount("/", StaticFiles(directory="static/dist", html=True), name="frontend")
 
 # CORS設定を環境変数から読み込む（デフォルト値あり）
 cors_origins_env = os.environ.get("CORS_ORIGINS", "")

@@ -3,12 +3,14 @@ import { useOnline } from "../hooks/useOnline";
 import { fetchWithTimeout } from "../api/fetch";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { payerLabel } from "../constants/payer";
+import { getAllPending, addPending, type PendingExpense } from "../db";
 
 type Summary = { start: string; end: string; total: number };
 type ByCategory = { category: string; total: number };
 type ByPayer = { paid_by: string | null; total: number };
 type Expense = {
   id?: number;
+  client_uuid?: string;
   date: string;
   amount: number;
   category: string;
@@ -52,12 +54,54 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
 
   const api = baseUrl.replace(/\/$/, "");
 
-  const fetchAll = useCallback(async () => {
-    if (!api) {
-      setError("同期先URLを入力してから集計してね");
-      return;
-    }
+  // ローカルデータから集計を計算
+  const calculateLocalSummary = useCallback((pendingItems: PendingExpense[]) => {
+    const filtered = pendingItems.filter(item => {
+      if (item.op === "delete") return false;
+      return item.date >= start && item.date <= end;
+    });
 
+    const total = filtered.reduce((sum, item) => sum + item.amount, 0);
+
+    const categoryMap = new Map<string, number>();
+    const payerMap = new Map<string | null, number>();
+
+    filtered.forEach(item => {
+      categoryMap.set(item.category, (categoryMap.get(item.category) || 0) + item.amount);
+      payerMap.set(item.paid_by, (payerMap.get(item.paid_by) || 0) + item.amount);
+    });
+
+    const byCategory: ByCategory[] = Array.from(categoryMap.entries())
+      .map(([category, total]) => ({ category, total }))
+      .sort((a, b) => b.total - a.total);
+
+    const byPayer: ByPayer[] = Array.from(payerMap.entries())
+      .map(([paid_by, total]) => ({ paid_by, total }))
+      .sort((a, b) => b.total - a.total);
+
+    const expenses: Expense[] = filtered
+      .sort((a, b) => {
+        const dateCompare = b.date.localeCompare(a.date);
+        if (dateCompare !== 0) return dateCompare;
+        return b.client_uuid.localeCompare(a.client_uuid);
+      })
+      .slice(0, 50)
+      .map(item => ({
+        client_uuid: item.client_uuid,
+        date: item.date,
+        amount: item.amount,
+        category: item.category,
+        note: item.note || null,
+        paid_by: item.paid_by,
+      }));
+
+    setSummary({ start, end, total });
+    setByCategory(byCategory);
+    setByPayer(byPayer);
+    setExpenses(expenses);
+  }, [start, end]);
+
+  const fetchAll = useCallback(async () => {
     // 日付範囲のバリデーション
     if (start > end) {
       setError("開始日は終了日より前である必要があります");
@@ -67,60 +111,107 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
     setLoading(true);
     setError(null);
     try {
-      const qs = `start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+      if (!online || !api) {
+        // オフライン時またはAPI未設定時はローカルデータから集計
+        const pendingItems = await getAllPending();
+        calculateLocalSummary(pendingItems);
+        if (!api) {
+          setError("同期先URLを入力してから集計してね（オフライン時はローカルデータのみ表示）");
+        }
+      } else {
+        // オンライン時はAPIから取得
+        const qs = `start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
 
-      const [sRes, cRes, pRes, eRes] = await Promise.all([
-        fetchWithTimeout(`${api}/summary?${qs}`, {}, 10000),
-        fetchWithTimeout(`${api}/summary/by-category?${qs}`, {}, 10000),
-        fetchWithTimeout(`${api}/summary/by-payer?${qs}`, {}, 10000),
-        fetchWithTimeout(`${api}/summary/expenses?${qs}&limit=50&offset=0`, {}, 10000),
-      ]);
+        const [sRes, cRes, pRes, eRes] = await Promise.all([
+          fetchWithTimeout(`${api}/summary?${qs}`, {}, 10000),
+          fetchWithTimeout(`${api}/summary/by-category?${qs}`, {}, 10000),
+          fetchWithTimeout(`${api}/summary/by-payer?${qs}`, {}, 10000),
+          fetchWithTimeout(`${api}/summary/expenses?${qs}&limit=50&offset=0`, {}, 10000),
+        ]);
 
-      if (!sRes.ok) throw new Error("合計の取得に失敗");
-      if (!cRes.ok) throw new Error("カテゴリ別の取得に失敗");
-      if (!pRes.ok) throw new Error("支払者別の取得に失敗");
-      if (!eRes.ok) throw new Error("明細の取得に失敗");
+        if (!sRes.ok) throw new Error("合計の取得に失敗");
+        if (!cRes.ok) throw new Error("カテゴリ別の取得に失敗");
+        if (!pRes.ok) throw new Error("支払者別の取得に失敗");
+        if (!eRes.ok) throw new Error("明細の取得に失敗");
 
-      const s: Summary = await sRes.json();
-      const c: ByCategory[] = await cRes.json();
-      const p: ByPayer[] = await pRes.json();
-      const e: Expense[] = await eRes.json();
+        const s: Summary = await sRes.json();
+        const c: ByCategory[] = await cRes.json();
+        const p: ByPayer[] = await pRes.json();
+        const e: Expense[] = await eRes.json();
 
-      setSummary(s);
-      setByCategory(c);
-      setByPayer(p);
-      setExpenses(e);
+        setSummary(s);
+        setByCategory(c);
+        setByPayer(p);
+        setExpenses(e);
+      }
     } catch (err: any) {
       setError(err?.message ?? "エラー");
+      // エラー時はローカルデータから集計を試みる
+      try {
+        const pendingItems = await getAllPending();
+        calculateLocalSummary(pendingItems);
+      } catch (localErr) {
+        // ローカルデータの取得も失敗した場合は何もしない
+      }
     } finally {
       setLoading(false);
     }
-  }, [api, start, end]);
+  }, [api, start, end, online, calculateLocalSummary]);
 
-  async function deleteExpense(id?: number) {
-    if (!api) {
-      setError("同期先URLを入力してね");
-      return;
-    }
-    if (!id) return;
-  
+  async function deleteExpense(id?: number, clientUuid?: string) {
+    if (!id && !clientUuid) return;
+
+    const isLocalDelete = !online || !api || !!clientUuid;
+    const deleteMessage = isLocalDelete
+      ? "この明細を削除しますか？\n\nオフライン時はローカルデータから削除されます。オンライン時に同期されます。"
+      : "この明細を削除しますか？\n\n論理削除されます。この操作は取り消せません。";
+
     setConfirmDialog({
-      message: "この明細を削除しますか？\n\n論理削除されます。この操作は取り消せません。",
+      message: deleteMessage,
       onConfirm: async () => {
         setLoading(true);
         setError(null);
         try {
-          const res = await fetchWithTimeout(`${api}/expenses/${id}`, { method: "DELETE" }, 10000);
-          if (!res.ok) {
-            const text = await res.text();
-            throw new Error(`削除に失敗: HTTP ${res.status}\n${text}`);
+          if (isLocalDelete) {
+            // オフライン時またはローカルデータの削除
+            // 削除リクエストをIndexedDBに保存
+            if (clientUuid) {
+              const pendingItems = await getAllPending();
+              const item = pendingItems.find(p => p.client_uuid === clientUuid);
+              if (item) {
+                // 既存のアイテムを削除リクエストに変更
+                await addPending({
+                  ...item,
+                  op: "delete",
+                });
+              }
+            } else if (id) {
+              // サーバーから取得したデータの場合、削除リクエストを新規作成
+              const expense = expenses.find(e => e.id === id);
+              if (expense) {
+                await addPending({
+                  client_uuid: `delete-${id}-${Date.now()}`,
+                  date: expense.date,
+                  amount: expense.amount,
+                  category: expense.category,
+                  note: expense.note || undefined,
+                  paid_by: (expense.paid_by as "me" | "her") || "me",
+                  op: "delete",
+                });
+              }
+            }
+            await fetchAll();
+          } else if (online && api && id) {
+            // オンライン時のサーバー削除
+            const res = await fetchWithTimeout(`${api}/expenses/${id}`, { method: "DELETE" }, 10000);
+            if (!res.ok) {
+              const text = await res.text();
+              throw new Error(`削除に失敗: HTTP ${res.status}\n${text}`);
+            }
+            await fetchAll();
           }
-    
-          // 削除成功後に画面を更新
-          await fetchAll();
         } catch (err: any) {
           setError(err?.message ?? "削除エラー");
-          // エラー時は画面を再取得して整合性を保つ
           await fetchAll();
         } finally {
           setLoading(false);
@@ -132,11 +223,10 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
   
 
   // baseUrl が入ったら自動で1回取得（QRから入ってきた時に便利）
+  // オフライン時でもローカルデータを表示
   useEffect(() => {
-    if (api) {
-      fetchAll();
-    }
-  }, [api, fetchAll]);
+    fetchAll();
+  }, [fetchAll]);
 
   function setThisMonth() {
     const d = new Date();
@@ -166,7 +256,20 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
     <div style={{ maxWidth: 520, margin: "0 auto", padding: 8, fontFamily: "system-ui" }}>
       <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 16, color: "#1f2937" }}>集計</h2>
 
-      {!api && (
+      {!online && (
+        <div style={{ 
+          background: "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)", 
+          border: "2px solid #3b82f6", 
+          padding: 14, 
+          borderRadius: 12, 
+          marginBottom: 16,
+          color: "#1e40af",
+          fontWeight: 500,
+        }}>
+          オフライン mode: ローカルデータのみ表示中
+        </div>
+      )}
+      {!api && online && (
         <div style={{ 
           background: "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)", 
           border: "2px solid #f59e0b", 
@@ -230,14 +333,14 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
             style={{ 
               ...btnStyle, 
               fontWeight: 700,
-              background: loading || !api 
+              background: loading 
                 ? "#e5e7eb" 
                 : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-              color: loading || !api ? "#9ca3af" : "#fff",
-              border: loading || !api ? "2px solid #d1d5db" : "2px solid #667eea",
-              boxShadow: loading || !api ? "none" : "0 2px 8px rgba(102, 126, 234, 0.4)",
+              color: loading ? "#9ca3af" : "#fff",
+              border: loading ? "2px solid #d1d5db" : "2px solid #667eea",
+              boxShadow: loading ? "none" : "0 2px 8px rgba(102, 126, 234, 0.4)",
             }} 
-            disabled={loading || !api}
+            disabled={loading}
           >
             {loading ? "取得中..." : "集計する"}
           </button>
@@ -377,57 +480,58 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
           <div style={{ color: "#9ca3af", fontSize: 14, fontStyle: "italic" }}>データなし</div>
         ) : (
           <div style={{ display: "grid", gap: 10 }}>
-            {expenses.map((e) => (
-              <div
-                key={e.id ?? `${e.date}-${e.amount}-${e.category}`}
-                style={{
-                  padding: 14,
-                  borderRadius: 12,
-                  background: "linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%)",
-                  border: "2px solid #e5e7eb",
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>{e.date}</div>
-                    <div style={{ fontWeight: 700, color: "#1f2937", marginBottom: 4 }}>{e.category}</div>
-                    {e.note ? <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{e.note}</div> : null}
-                  </div>
-                  <div style={{ display: "grid", justifyItems: "end", gap: 8 }}>
-                    <div style={{ 
-                      fontWeight: 800, 
-                      fontSize: 18,
-                      background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                      WebkitBackgroundClip: "text",
-                      WebkitTextFillColor: "transparent",
-                      backgroundClip: "text",
-                    }}>
-                      ¥{e.amount.toLocaleString("ja-JP")}
+            {expenses.map((e, idx) => {
+              return (
+                <div
+                  key={e.id ?? `${e.date}-${e.amount}-${e.category}-${idx}`}
+                  style={{
+                    padding: 14,
+                    borderRadius: 12,
+                    background: "linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%)",
+                    border: "2px solid #e5e7eb",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>{e.date}</div>
+                      <div style={{ fontWeight: 700, color: "#1f2937", marginBottom: 4 }}>{e.category}</div>
+                      {e.note ? <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{e.note}</div> : null}
                     </div>
+                    <div style={{ display: "grid", justifyItems: "end", gap: 8 }}>
+                      <div style={{ 
+                        fontWeight: 800, 
+                        fontSize: 18,
+                        color: "#667eea",
+                      }}>
+                        ¥{e.amount.toLocaleString("ja-JP")}
+                      </div>
 
-                    <button
-                      onClick={() => deleteExpense(e.id)}
-                      disabled={loading || !e.id || !online}
-                      style={{
-                        padding: "6px 12px",
-                        borderRadius: 8,
-                        border: "2px solid #ef4444",
-                        background: loading || !online ? "#f3f4f6" : "#fee2e2",
-                        color: loading || !online ? "#9ca3af" : "#dc2626",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        opacity: loading || !online ? 0.6 : 1,
-                        cursor: loading || !online ? "not-allowed" : "pointer",
-                        transition: "all 0.2s",
-                      }}
-                    >
-                      削除
-                    </button>
+                      <button
+                        onClick={() => {
+                          deleteExpense(e.id, e.client_uuid);
+                        }}
+                        disabled={loading}
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: 8,
+                          border: "2px solid #ef4444",
+                          background: loading ? "#f3f4f6" : "#fee2e2",
+                          color: loading ? "#9ca3af" : "#dc2626",
+                          fontSize: 12,
+                          fontWeight: 600,
+                          opacity: loading ? 0.6 : 1,
+                          cursor: loading ? "not-allowed" : "pointer",
+                          transition: "all 0.2s",
+                        }}
+                      >
+                        削除
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
