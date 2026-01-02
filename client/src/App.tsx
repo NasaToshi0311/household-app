@@ -8,7 +8,6 @@ import ApiUrlBox from "./components/ApiUrlBox";
 import PendingList from "./components/PendingList";
 import ExpenseForm from "./components/ExpenseForm";
 import ConfirmDialog from "./components/ConfirmDialog";
-import MessageBox from "./components/MessageBox";
 import * as S from "./ui/styles.ts";
 
 
@@ -22,10 +21,6 @@ export default function App() {
   const [confirmDialog, setConfirmDialog] = useState<{
     message: string;
     onConfirm: () => void;
-  } | null>(null);
-  const [message, setMessage] = useState<{
-    text: string;
-    type: "success" | "error" | "info" | "warning";
   } | null>(null);
 
   const refresh = useCallback(async () => {
@@ -43,34 +38,19 @@ export default function App() {
     try {
       const latest = await getAllPending();
       if (latest.length === 0) {
-        setMessage({ text: "未送信データがありません", type: "info" });
-        setTimeout(() => setMessage(null), 3000);
+        alert("未送信がありません");
       } else {
         const result = await syncExpenses(latest);
         await removePending(result.ok_uuids);
         await refresh();
-        const successCount = result.ok_uuids.length;
-        const failCount = result.ng_uuids.length;
-        if (failCount === 0) {
-          setMessage({ 
-            text: `同期完了\n成功: ${successCount}件`, 
-            type: "success" 
-          });
-        } else {
-          setMessage({ 
-            text: `同期完了\n成功: ${successCount}件\n失敗: ${failCount}件`, 
-            type: failCount > successCount ? "error" : "warning" 
-          });
-        }
-        setTimeout(() => setMessage(null), 5000);
+        alert(`同期完了（成功 ${result.ok_uuids.length} / 失敗 ${result.ng_uuids.length}）`);
       }
     } catch (e: any) {
       if (e?.name === "AbortError") {
-        setMessage({ text: "同期失敗: タイムアウト", type: "error" });
+        alert("同期失敗: タイムアウト");
       } else {
-        setMessage({ text: e?.message ?? "同期失敗", type: "error" });
+        alert(e?.message ?? "同期失敗");
       }
-      setTimeout(() => setMessage(null), 5000);
     } finally {
       setSyncing(false);
     }
@@ -84,13 +64,13 @@ export default function App() {
         padding: "12px 20px",
         borderRadius: tab === key ? "12px 12px 0 0" : "12px 12px 0 0",
         border: "none",
-        borderTop: tab === key ? "3px solid #e0e0e0" : "3px solid transparent",
-        borderLeft: tab === key ? "2px solid #e0e0e0" : "none",
-        borderRight: tab === key ? "2px solid #e0e0e0" : "none",
+        borderTop: tab === key ? "3px solid #ffffff" : "3px solid transparent",
+        borderLeft: tab === key ? "2px solid rgba(255,255,255,0.3)" : "none",
+        borderRight: tab === key ? "2px solid rgba(255,255,255,0.3)" : "none",
         background: tab === key 
-          ? "#ffffff" 
-          : "rgba(156, 163, 175, 0.3)",
-        color: tab === key ? "#1f2937" : "#6b7280",
+          ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" 
+          : "rgba(255,255,255,0.6)",
+        color: tab === key ? "#ffffff" : "#4b5563",
         fontWeight: tab === key ? 800 : 600,
         fontSize: 16,
         cursor: "pointer",
@@ -99,21 +79,18 @@ export default function App() {
         zIndex: tab === key ? 10 : 1,
         transform: tab === key ? "translateY(-2px)" : "translateY(0)",
         boxShadow: tab === key 
-          ? "0 -2px 8px rgba(0,0,0,0.1)" 
+          ? "0 -2px 8px rgba(102, 126, 234, 0.3), inset 0 1px 0 rgba(255,255,255,0.2)" 
           : "none",
-        filter: tab === key ? "none" : "grayscale(100%)",
-        opacity: tab === key ? 1 : 0.7,
+        textShadow: tab === key ? "0 1px 2px rgba(0,0,0,0.2)" : "none",
       }}
       onMouseEnter={(e) => {
         if (tab !== key) {
-          e.currentTarget.style.opacity = "0.9";
-          e.currentTarget.style.filter = "grayscale(80%)";
+          e.currentTarget.style.background = "rgba(255,255,255,0.8)";
         }
       }}
       onMouseLeave={(e) => {
         if (tab !== key) {
-          e.currentTarget.style.opacity = "0.7";
-          e.currentTarget.style.filter = "grayscale(100%)";
+          e.currentTarget.style.background = "rgba(255,255,255,0.6)";
         }
       }}
     >
@@ -138,12 +115,12 @@ export default function App() {
         <div style={{
           display: "flex",
           gap: 0,
-          background: "#ffffff",
+          background: "rgba(255,255,255,0.2)",
           borderRadius: "14px 14px 0 0",
           padding: "4px 4px 0 4px",
-          borderTop: "2px solid #e0e0e0",
-          borderLeft: "2px solid #e0e0e0",
-          borderRight: "2px solid #e0e0e0",
+          borderTop: "2px solid rgba(255,255,255,0.3)",
+          borderLeft: "2px solid rgba(255,255,255,0.3)",
+          borderRight: "2px solid rgba(255,255,255,0.3)",
         }}>
           {tabBtn("input", "入力")}
           {tabBtn("summary", "集計")}
@@ -154,7 +131,7 @@ export default function App() {
         marginTop: 0,
         background: "#ffffff",
         borderRadius: "0 0 16px 16px",
-        border: "2px solid #e0e0e0",
+        border: "2px solid rgba(255,255,255,0.3)",
         borderTop: "none",
         padding: "16px",
         boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
@@ -199,14 +176,6 @@ export default function App() {
           message={confirmDialog.message}
           onConfirm={confirmDialog.onConfirm}
           onCancel={() => setConfirmDialog(null)}
-        />
-      )}
-
-      {message && (
-        <MessageBox
-          message={message.text}
-          type={message.type}
-          onClose={() => setMessage(null)}
         />
       )}
     </div>
