@@ -46,10 +46,12 @@ export default function ApiUrlBox({
   return (
     <div style={S.card}>
       {/* タイトル */}
-      <div style={{ fontWeight: 700, marginBottom: 8 }}>同期設定</div>
+      <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16, color: "#1f2937" }}>
+        同期設定
+      </div>
 
       {/* URL入力 */}
-      <div style={{ marginBottom: 8 }}>
+      <div style={{ marginBottom: 12 }}>
         <div style={S.label}>同期先URL（PCのIP）</div>
         <input
           placeholder="http://192.168.x.x:8000"
@@ -71,21 +73,43 @@ export default function ApiUrlBox({
         style={{
           ...(online && !syncing ? S.btnPrimary : S.btn),
           width: "100%",
-          opacity: online && !syncing ? 1 : 0.5,
+          opacity: online && !syncing ? 1 : 0.6,
+          cursor: online && !syncing ? "pointer" : "not-allowed",
         }}
       >
-        {syncing ? "同期中..." : `同期する（未送信 ${itemsCount} 件）`}
+        {syncing 
+          ? "同期中..." 
+          : itemsCount > 0 
+            ? `未送信データを同期する（${itemsCount}件）`
+            : "同期する"}
       </button>
 
       {/* 状態表示 */}
       {!online && (
-        <div style={{ ...S.muted, color: "#c00", marginTop: 8 }}>
+        <div style={{ 
+          ...S.infoBox, 
+          marginTop: 12,
+          background: "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)",
+          border: "2px solid #3b82f6",
+          color: "#1e40af",
+        }}>
           ● オフライン中：帰宅後に同期できます
         </div>
       )}
       {online && !syncing && itemsCount === 0 && (
-        <div style={{ ...S.muted, marginTop: 8 }}>
-          未送信データはありません
+        <div style={{ 
+          ...S.successBox, 
+          marginTop: 12,
+        }}>
+          ✓ 未送信データはありません
+        </div>
+      )}
+      {online && !syncing && itemsCount > 0 && (
+        <div style={{ 
+          ...S.warningBox, 
+          marginTop: 12,
+        }}>
+          ⚠ 未送信データが {itemsCount} 件あります
         </div>
       )}
     </div>

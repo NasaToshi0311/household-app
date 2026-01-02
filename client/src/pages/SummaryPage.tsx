@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useOnline } from "../hooks/useOnline";
 import { fetchWithTimeout } from "../api/fetch";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 type Summary = { start: string; end: string; total: number };
 type ByCategory = { category: string; total: number };
@@ -38,6 +39,10 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [byCategory, setByCategory] = useState<ByCategory[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const online = useOnline();
 
@@ -92,27 +97,30 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
     }
     if (!id) return;
   
-    const ok = confirm("この明細を削除しますか？（論理削除）");
-    if (!ok) return;
-  
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetchWithTimeout(`${api}/expenses/${id}`, { method: "DELETE" }, 10000);
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`削除に失敗: HTTP ${res.status}\n${text}`);
-      }
-  
-      // 削除成功後に画面を更新
-      await fetchAll();
-    } catch (err: any) {
-      setError(err?.message ?? "削除エラー");
-      // エラー時は画面を再取得して整合性を保つ
-      await fetchAll();
-    } finally {
-      setLoading(false);
-    }
+    setConfirmDialog({
+      message: "この明細を削除しますか？\n\n論理削除されます。この操作は取り消せません。",
+      onConfirm: async () => {
+        setLoading(true);
+        setError(null);
+        try {
+          const res = await fetchWithTimeout(`${api}/expenses/${id}`, { method: "DELETE" }, 10000);
+          if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`削除に失敗: HTTP ${res.status}\n${text}`);
+          }
+    
+          // 削除成功後に画面を更新
+          await fetchAll();
+        } catch (err: any) {
+          setError(err?.message ?? "削除エラー");
+          // エラー時は画面を再取得して整合性を保つ
+          await fetchAll();
+        } finally {
+          setLoading(false);
+          setConfirmDialog(null);
+        }
+      },
+    });
   }
   
 
@@ -149,10 +157,18 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
 
   return (
     <div style={{ maxWidth: 520, margin: "0 auto", padding: 8, fontFamily: "system-ui" }}>
-      <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>集計</h2>
+      <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 16, color: "#1f2937" }}>集計</h2>
 
       {!api && (
-        <div style={{ background: "#fff7cc", border: "1px solid #ffe08a", padding: 12, borderRadius: 12, marginBottom: 12 }}>
+        <div style={{ 
+          background: "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)", 
+          border: "2px solid #f59e0b", 
+          padding: 14, 
+          borderRadius: 12, 
+          marginBottom: 16,
+          color: "#92400e",
+          fontWeight: 500,
+        }}>
           同期先URLが未設定です（上の入力欄に <b>http://192.168.x.x:8000</b> を入れてね）
         </div>
       )}
@@ -166,21 +182,35 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
         }}
       >
         <div style={{ display: "grid", gap: 6 }}>
-          <label style={{ fontSize: 16, color: "#555" }}>開始日</label>
+          <label style={{ fontSize: 14, color: "#374151", fontWeight: 600 }}>開始日</label>
           <input
             type="date"
             value={start}
             onChange={(e) => setStart(e.target.value)}
-            style={{ width: "100%", padding: 12, borderRadius: 10, border: "1px solid #ddd" }}
+            style={{ 
+              width: "100%", 
+              padding: 12, 
+              borderRadius: 12, 
+              border: "2px solid #e0e0e0",
+              fontSize: 15,
+              transition: "border-color 0.2s",
+            }}
           />
         </div>
         <div style={{ display: "grid", gap: 6 }}>
-          <label style={{ fontSize: 16, color: "#555" }}>終了日</label>
+          <label style={{ fontSize: 14, color: "#374151", fontWeight: 600 }}>終了日</label>
           <input
             type="date"
             value={end}
             onChange={(e) => setEnd(e.target.value)}
-            style={{ width: "100%", padding: 12, borderRadius: 10, border: "1px solid #ddd" }}
+            style={{ 
+              width: "100%", 
+              padding: 12, 
+              borderRadius: 12, 
+              border: "2px solid #e0e0e0",
+              fontSize: 15,
+              transition: "border-color 0.2s",
+            }}
           />
         </div>
 
@@ -188,14 +218,35 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
           <button onClick={setThisMonth} style={btnStyle}>今月</button>
           <button onClick={setLastMonth} style={btnStyle}>先月</button>
           <button onClick={setLast7Days} style={btnStyle}>直近7日</button>
-          <button onClick={fetchAll} style={{ ...btnStyle, fontWeight: 700 }} disabled={loading || !api}>
+          <button 
+            onClick={fetchAll} 
+            style={{ 
+              ...btnStyle, 
+              fontWeight: 700,
+              background: loading || !api 
+                ? "#e5e7eb" 
+                : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+              color: loading || !api ? "#9ca3af" : "#fff",
+              border: loading || !api ? "2px solid #d1d5db" : "2px solid #667eea",
+              boxShadow: loading || !api ? "none" : "0 2px 8px rgba(102, 126, 234, 0.4)",
+            }} 
+            disabled={loading || !api}
+          >
             {loading ? "取得中..." : "集計する"}
           </button>
         </div>
       </div>
 
       {error && (
-        <div style={{ background: "#ffecec", border: "1px solid #ffb3b3", padding: 12, borderRadius: 12, marginBottom: 12 }}>
+        <div style={{ 
+          background: "linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)", 
+          border: "2px solid #ef4444", 
+          padding: 14, 
+          borderRadius: 12, 
+          marginBottom: 16,
+          color: "#991b1b",
+          fontWeight: 500,
+        }}>
           {error}
         </div>
       )}
@@ -206,31 +257,63 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
         </div>
         <div
           style={{
-            fontSize: 28,
+            fontSize: 32,
             fontWeight: 800,
-            marginTop: 6,
-            color: "#2563eb", // 青（安心・基準色）
+            marginTop: 8,
+            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            backgroundClip: "text",
           }}
         >
           ¥{totalText}
         </div>
-        <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>合計（支出）</div>
+        <div style={{ fontSize: 13, color: "#6b7280", marginTop: 6, fontWeight: 500 }}>合計（支出）</div>
       </div>
 
       <div style={{ height: 12 }} />
 
       <div style={cardStyle}>
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>カテゴリ別</div>
+        <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16, color: "#1f2937" }}>カテゴリ別</div>
         {byCategory.length === 0 ? (
-          <div style={{ color: "#666", fontSize: 13 }}>データなし</div>
+          <div style={{ color: "#9ca3af", fontSize: 14, fontStyle: "italic" }}>データなし</div>
         ) : (
-          <div style={{ display: "grid", gap: 6 }}>
-            {byCategory.slice(0, 10).map((c) => (
-              <div key={c.category} style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                <div style={{ color: "#333" }}>{c.category}</div>
-                <div style={{ fontWeight: 700 }}>¥{c.total.toLocaleString("ja-JP")}</div>
-              </div>
-            ))}
+          <div style={{ display: "grid", gap: 8 }}>
+            {byCategory.slice(0, 10).map((c, idx) => {
+              const colors = [
+                "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+                "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+                "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)",
+                "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
+              ];
+              const color = colors[idx % colors.length];
+              return (
+                <div 
+                  key={c.category} 
+                  style={{ 
+                    display: "flex", 
+                    justifyContent: "space-between", 
+                    gap: 8,
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    background: "rgba(102, 126, 234, 0.05)",
+                    border: "1px solid rgba(102, 126, 234, 0.1)",
+                  }}
+                >
+                  <div style={{ color: "#1f2937", fontWeight: 600 }}>{c.category}</div>
+                  <div style={{ 
+                    fontWeight: 700, 
+                    background: color,
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                  }}>
+                    ¥{c.total.toLocaleString("ja-JP")}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -238,41 +321,54 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
       <div style={{ height: 12 }} />
 
       <div style={cardStyle}>
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>明細（最新50件）</div>
+        <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16, color: "#1f2937" }}>明細（最新50件）</div>
         {expenses.length === 0 ? (
-          <div style={{ color: "#666", fontSize: 13 }}>データなし</div>
+          <div style={{ color: "#9ca3af", fontSize: 14, fontStyle: "italic" }}>データなし</div>
         ) : (
-          <div style={{ display: "grid", gap: 8 }}>
+          <div style={{ display: "grid", gap: 10 }}>
             {expenses.map((e) => (
               <div
                 key={e.id ?? `${e.date}-${e.amount}-${e.category}`}
                 style={{
-                  padding: 10,
+                  padding: 14,
                   borderRadius: 12,
-                  background: "#fafafa",
-                  border: "1px solid #eee",
+                  background: "linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%)",
+                  border: "2px solid #e5e7eb",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                  <div>
-                    <div style={{ fontSize: 12, color: "#666" }}>{e.date}</div>
-                    <div style={{ fontWeight: 700 }}>{e.category}</div>
-                    {e.note ? <div style={{ fontSize: 12, color: "#666" }}>{e.note}</div> : null}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>{e.date}</div>
+                    <div style={{ fontWeight: 700, color: "#1f2937", marginBottom: 4 }}>{e.category}</div>
+                    {e.note ? <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{e.note}</div> : null}
                   </div>
-                  <div style={{ display: "grid", justifyItems: "end", gap: 6 }}>
-                    <div style={{ fontWeight: 800 }}>¥{e.amount.toLocaleString("ja-JP")}</div>
+                  <div style={{ display: "grid", justifyItems: "end", gap: 8 }}>
+                    <div style={{ 
+                      fontWeight: 800, 
+                      fontSize: 18,
+                      background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                      backgroundClip: "text",
+                    }}>
+                      ¥{e.amount.toLocaleString("ja-JP")}
+                    </div>
 
                     <button
                       onClick={() => deleteExpense(e.id)}
                       disabled={loading || !e.id || !online}
                       style={{
-                        padding: "6px 10px",
-                        borderRadius: 10,
-                        border: "1px solid #ddd",
-                        background: "#fff",
+                        padding: "6px 12px",
+                        borderRadius: 8,
+                        border: "2px solid #ef4444",
+                        background: loading || !online ? "#f3f4f6" : "#fee2e2",
+                        color: loading || !online ? "#9ca3af" : "#dc2626",
                         fontSize: 12,
-                        opacity: loading || !online ? 0.5 : 1,
+                        fontWeight: 600,
+                        opacity: loading || !online ? 0.6 : 1,
                         cursor: loading || !online ? "not-allowed" : "pointer",
+                        transition: "all 0.2s",
                       }}
                     >
                       削除
@@ -284,21 +380,34 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
           </div>
         )}
       </div>
+
+      {confirmDialog && (
+        <ConfirmDialog
+          message={confirmDialog.message}
+          onConfirm={confirmDialog.onConfirm}
+          onCancel={() => setConfirmDialog(null)}
+        />
+      )}
     </div>
   );
 }
 
 const cardStyle: React.CSSProperties = {
-  border: "1px solid #e5e5e5",
+  border: "1px solid rgba(255,255,255,0.3)",
   borderRadius: 16,
-  padding: 14,
+  padding: 16,
   background: "#fff",
-  boxShadow: "0 1px 8px rgba(0,0,0,0.04)",
+  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
 };
 
 const btnStyle: React.CSSProperties = {
-  padding: "10px 12px",
+  padding: "10px 16px",
   borderRadius: 12,
-  border: "1px solid #ddd",
-  background: "#fafafa",
+  border: "2px solid #e0e0e0",
+  background: "#f8f9fa",
+  cursor: "pointer",
+  fontSize: 14,
+  fontWeight: 600,
+  color: "#374151",
+  transition: "all 0.2s",
 };

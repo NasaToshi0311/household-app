@@ -13,7 +13,10 @@ export async function fetchWithTimeout(
     } catch (error: any) {
       clearTimeout(id);
       if (error.name === "AbortError") {
-        throw new Error(`Request timeout after ${timeoutMs}ms`);
+        // AbortErrorを保持して、呼び出し側で適切に処理できるようにする
+        const abortError = new Error(`Request timeout after ${timeoutMs}ms`);
+        abortError.name = "AbortError";
+        throw abortError;
       }
       throw error;
     }

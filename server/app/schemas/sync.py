@@ -6,7 +6,7 @@ Payer = Literal["me", "her"]
 Op = Literal["upsert", "delete"]
 
 class SyncExpenseItem(BaseModel):
-    client_uuid: str = Field(min_length=10)
+    client_uuid: str = Field(min_length=10, max_length=36)  # UUID形式（通常36文字）
     date: date
     amount: int = Field(ge=0, le=1000000000)  # 0円以上、10億円以下
     category: str = Field(min_length=1, max_length=32)
