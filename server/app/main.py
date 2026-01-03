@@ -7,6 +7,7 @@ from app.routers.expenses import router as expenses_router
 from app.routers.stats import router as stats_router
 from app.routers.sync_qr import router as sync_qr_router
 from app.routers.summary import router as summary_router
+from app.middleware.auth import APIKeyMiddleware
 from fastapi.staticfiles import StaticFiles
 
 app = FastAPI() # FastAPIのインスタンスを作成
@@ -16,21 +17,24 @@ cors_origins_env = os.environ.get("CORS_ORIGINS", "")
 if cors_origins_env:
     origins = [origin.strip() for origin in cors_origins_env.split(",")]
 else:
-    # デフォルト値（開発環境用）
+    # デフォルト値（開発環境用 + 本番環境）
     origins = [
+        "https://household-app.vercel.app",
         "http://10.76.108.202:5173",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]
 
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*", "X-API-Key"],
 )
+
+# APIキー認証ミドルウェアを追加
+app.add_middleware(APIKeyMiddleware)
 
 # 開発用：起動時にテーブル作成（本番はAlembicにする）
 Base.metadata.create_all(bind=engine) # テーブルを作成
@@ -44,4 +48,4 @@ app.include_router(expenses_router) # 支出ルーターを追加する
 app.include_router(stats_router) # 統計ルーターを追加する
 app.include_router(sync_qr_router) # 同期QRルーターを追加する
 app.include_router(summary_router) # 要約ルーターを追加する
-app.mount("/", StaticFiles(directory="static/dist", html=True), name="frontend")
+app.mount("/app", StaticFiles(directory="static/dist", html=True), name="frontend")

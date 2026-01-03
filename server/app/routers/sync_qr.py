@@ -1,10 +1,16 @@
 import socket
 import qrcode
+import json
+import os
+from urllib.parse import quote
 from io import BytesIO
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 
 router = APIRouter(prefix="/sync", tags=["sync-qr"])
+
+# APIキーを環境変数から読み込む（デフォルト値あり）
+API_KEY = os.environ.get("API_KEY", "household-app-secret-key-2024")
 
 def get_lan_ip() -> str:
     # 8.8.8.8に実際に接続しなくても、経路からLAN側IPを取れる
@@ -21,7 +27,12 @@ def get_lan_ip() -> str:
 def sync_url():
     try:
         ip = get_lan_ip()
-        return {"base_url": f"http://{ip}:8000?from=qr"}
+        base_url = f"http://{ip}:8000"
+        # URLとAPIキーの両方を返す
+        return {
+            "base_url": base_url,
+            "api_key": API_KEY,
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -31,9 +42,19 @@ def sync_url():
 def sync_qr_png():
     try:
         ip = get_lan_ip()
-        url = f"http://{ip}:8000?from=qr"
+        base_url = f"http://{ip}:8000"
+        # QRコードにアプリのURLとJSONデータを含める
+        # スマホで読み取った後、アプリが開くようにする
+        qr_data = {
+            "base_url": base_url,
+            "api_key": API_KEY,
+        }
+        # JSONをURLエンコードしてアプリのURLに含める
+        app_url = "https://household-app.vercel.app"
+        qr_json = json.dumps(qr_data)
+        qr_url = f"{app_url}?qr_data={quote(qr_json)}"
 
-        img = qrcode.make(url)
+        img = qrcode.make(qr_url)
         buf = BytesIO()
         img.save(buf, format="PNG")
         buf.seek(0)

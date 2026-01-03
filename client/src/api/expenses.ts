@@ -1,6 +1,6 @@
 import { fetchWithTimeout } from "./fetch.ts";
 import type { PendingExpense } from "../db";
-import { getApiBaseUrl } from "../config/api";
+import { getApiBaseUrl, getApiKey } from "../config/api";
 
 export async function syncExpenses(items: PendingExpense[]) {
   const saved = getApiBaseUrl().trim();
@@ -13,11 +13,17 @@ export async function syncExpenses(items: PendingExpense[]) {
     throw new Error("同期先URLが不正です");
   }
 
+  const apiKey = getApiKey();
+  const headers: HeadersInit = { "Content-Type": "application/json" };
+  if (apiKey) {
+    headers["X-API-Key"] = apiKey;
+  }
+
   const res = await fetchWithTimeout(
     `${api}/sync/expenses`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ items }),
     },
     8000

@@ -39,6 +39,7 @@ services:
 
     environment: # API用の環境変数
       DATABASE_URL: postgresql+psycopg://household:household@db:5432/household # DB接続URL
+      CORS_ORIGINS: "https://household-app.vercel.app,http://10.76.108.202:8000,http://localhost:5173"
 
 # =========================
 # ボリューム定義

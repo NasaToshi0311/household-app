@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { getApiBaseUrl, setApiBaseUrl } from "../config/api";
+import { getApiBaseUrl, setApiBaseUrl, setApiKey } from "../config/api";
 import * as S from "../ui/styles";
 
 function HelpSection() {
@@ -106,11 +106,50 @@ export default function ApiUrlBox({
     const params = new URLSearchParams(window.location.search);
 
     if (params.get("from") === "qr") {
-      const api = window.location.origin.replace(/:\d+$/, ":8000");
-      setBaseUrl(api);
-      setApiBaseUrl(api);
-      onBaseUrlChangeRef.current?.(api);
+      // QRコードから読み取ったデータを処理
+      // URLパラメータからbase_urlとapi_keyを取得
+      const baseUrlParam = params.get("base_url");
+      const apiKeyParam = params.get("api_key");
+      
+      if (baseUrlParam) {
+        setBaseUrl(baseUrlParam);
+        setApiBaseUrl(baseUrlParam);
+        onBaseUrlChangeRef.current?.(baseUrlParam);
+      } else {
+        // 旧形式のフォールバック（URLのみ）
+        const api = window.location.origin.replace(/:\d+$/, ":8000");
+        setBaseUrl(api);
+        setApiBaseUrl(api);
+        onBaseUrlChangeRef.current?.(api);
+      }
+      
+      if (apiKeyParam) {
+        setApiKey(apiKeyParam);
+      }
     } else {
+      // URLパラメータからJSONデータを取得（QRコード読み取り時）
+      // QRコードにJSONが含まれている場合、それをURLパラメータとして渡す
+      const qrDataParam = params.get("qr_data");
+      if (qrDataParam) {
+        try {
+          const qrData = JSON.parse(decodeURIComponent(qrDataParam));
+          if (qrData.base_url) {
+            setBaseUrl(qrData.base_url);
+            setApiBaseUrl(qrData.base_url);
+            onBaseUrlChangeRef.current?.(qrData.base_url);
+          }
+          if (qrData.api_key) {
+            setApiKey(qrData.api_key);
+          }
+          // パラメータをクリア
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.delete("qr_data");
+          window.history.replaceState(null, "", newUrl.toString());
+        } catch (e) {
+          // JSON解析に失敗した場合は無視
+        }
+      }
+      
       const saved = getApiBaseUrl();
       if (saved) {
         setBaseUrl(saved);

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useOnline } from "../hooks/useOnline";
 import { fetchWithTimeout } from "../api/fetch";
+import { getApiKey } from "../config/api";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { payerLabel } from "../constants/payer";
 import { getAllPending, addPending, type PendingExpense } from "../db";
@@ -122,11 +123,17 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
         // オンライン時はAPIから取得
         const qs = `start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
 
+        const apiKey = getApiKey();
+        const headers: HeadersInit = {};
+        if (apiKey) {
+          headers["X-API-Key"] = apiKey;
+        }
+
         const [sRes, cRes, pRes, eRes] = await Promise.all([
-          fetchWithTimeout(`${api}/summary?${qs}`, {}, 10000),
-          fetchWithTimeout(`${api}/summary/by-category?${qs}`, {}, 10000),
-          fetchWithTimeout(`${api}/summary/by-payer?${qs}`, {}, 10000),
-          fetchWithTimeout(`${api}/summary/expenses?${qs}&limit=50&offset=0`, {}, 10000),
+          fetchWithTimeout(`${api}/summary?${qs}`, { headers }, 10000),
+          fetchWithTimeout(`${api}/summary/by-category?${qs}`, { headers }, 10000),
+          fetchWithTimeout(`${api}/summary/by-payer?${qs}`, { headers }, 10000),
+          fetchWithTimeout(`${api}/summary/expenses?${qs}&limit=50&offset=0`, { headers }, 10000),
         ]);
 
         if (!sRes.ok) throw new Error("合計の取得に失敗");
@@ -203,7 +210,12 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
             await fetchAll();
           } else if (online && api && id) {
             // オンライン時のサーバー削除
-            const res = await fetchWithTimeout(`${api}/expenses/${id}`, { method: "DELETE" }, 10000);
+            const apiKey = getApiKey();
+            const headers: HeadersInit = {};
+            if (apiKey) {
+              headers["X-API-Key"] = apiKey;
+            }
+            const res = await fetchWithTimeout(`${api}/expenses/${id}`, { method: "DELETE", headers }, 10000);
             if (!res.ok) {
               const text = await res.text();
               throw new Error(`削除に失敗: HTTP ${res.status}\n${text}`);
