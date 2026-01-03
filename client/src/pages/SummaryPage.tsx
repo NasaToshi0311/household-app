@@ -132,11 +132,14 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
           "X-API-Key": apiKey,
         };
 
+        // タイムアウトを15秒に延長（テザリング環境での遅延を考慮）
+        const timeoutMs = 15000;
+        
         const [sRes, cRes, pRes, eRes] = await Promise.all([
-          fetchWithTimeout(`${api}/summary?${qs}`, { headers }, 10000),
-          fetchWithTimeout(`${api}/summary/by-category?${qs}`, { headers }, 10000),
-          fetchWithTimeout(`${api}/summary/by-payer?${qs}`, { headers }, 10000),
-          fetchWithTimeout(`${api}/summary/expenses?${qs}&limit=50&offset=0`, { headers }, 10000),
+          fetchWithTimeout(`${api}/summary?${qs}`, { headers }, timeoutMs),
+          fetchWithTimeout(`${api}/summary/by-category?${qs}`, { headers }, timeoutMs),
+          fetchWithTimeout(`${api}/summary/by-payer?${qs}`, { headers }, timeoutMs),
+          fetchWithTimeout(`${api}/summary/expenses?${qs}&limit=50&offset=0`, { headers }, timeoutMs),
         ]);
 
         if (!sRes.ok) {
@@ -175,7 +178,14 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
         setExpenses(e);
       }
     } catch (err: any) {
-      setError(err?.message ?? "エラー");
+      let errorMessage = err?.message ?? "エラー";
+      
+      // タイムアウトエラーの場合、より詳細な情報を提供
+      if (err?.name === "AbortError" || errorMessage.includes("timeout")) {
+        errorMessage = `タイムアウト: サーバーに接続できませんでした。\n\n確認事項:\n1. PC側のサーバーが起動しているか\n2. PCとスマホが同じネットワークに接続されているか\n3. 同期先URLが正しいか（${api || "未設定"}）\n4. APIキーが設定されているか`;
+      }
+      
+      setError(errorMessage);
       // エラー時はローカルデータから集計を試みる
       try {
         const pendingItems = await getAllPending();
