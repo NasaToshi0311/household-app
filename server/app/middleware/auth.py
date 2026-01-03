@@ -20,6 +20,10 @@ PUBLIC_PATHS = [
 
 class APIKeyMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        # OPTIONSリクエスト（CORSプリフライト）は認証不要
+        if request.method == "OPTIONS":
+            return await call_next(request)
+        
         # パブリックパスは認証不要
         if any(request.url.path.startswith(path) for path in PUBLIC_PATHS):
             return await call_next(request)

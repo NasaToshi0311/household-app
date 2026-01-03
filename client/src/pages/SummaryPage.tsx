@@ -124,10 +124,13 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
         const qs = `start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
 
         const apiKey = getApiKey();
-        const headers: HeadersInit = {};
-        if (apiKey) {
-          headers["X-API-Key"] = apiKey;
+        if (!apiKey) {
+          throw new Error("APIキーが設定されていません。QRコードを読み取って設定してください。");
         }
+
+        const headers: HeadersInit = {
+          "X-API-Key": apiKey,
+        };
 
         const [sRes, cRes, pRes, eRes] = await Promise.all([
           fetchWithTimeout(`${api}/summary?${qs}`, { headers }, 10000),
@@ -136,10 +139,30 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
           fetchWithTimeout(`${api}/summary/expenses?${qs}&limit=50&offset=0`, { headers }, 10000),
         ]);
 
-        if (!sRes.ok) throw new Error("合計の取得に失敗");
-        if (!cRes.ok) throw new Error("カテゴリ別の取得に失敗");
-        if (!pRes.ok) throw new Error("支払者別の取得に失敗");
-        if (!eRes.ok) throw new Error("明細の取得に失敗");
+        if (!sRes.ok) {
+          if (sRes.status === 401) {
+            throw new Error("認証に失敗しました。APIキーが正しくないか、QRコードを再読み取りしてください。");
+          }
+          throw new Error("合計の取得に失敗");
+        }
+        if (!cRes.ok) {
+          if (cRes.status === 401) {
+            throw new Error("認証に失敗しました。APIキーが正しくないか、QRコードを再読み取りしてください。");
+          }
+          throw new Error("カテゴリ別の取得に失敗");
+        }
+        if (!pRes.ok) {
+          if (pRes.status === 401) {
+            throw new Error("認証に失敗しました。APIキーが正しくないか、QRコードを再読み取りしてください。");
+          }
+          throw new Error("支払者別の取得に失敗");
+        }
+        if (!eRes.ok) {
+          if (eRes.status === 401) {
+            throw new Error("認証に失敗しました。APIキーが正しくないか、QRコードを再読み取りしてください。");
+          }
+          throw new Error("明細の取得に失敗");
+        }
 
         const s: Summary = await sRes.json();
         const c: ByCategory[] = await cRes.json();
@@ -211,12 +234,20 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
           } else if (online && api && id) {
             // オンライン時のサーバー削除
             const apiKey = getApiKey();
-            const headers: HeadersInit = {};
-            if (apiKey) {
-              headers["X-API-Key"] = apiKey;
+            if (!apiKey) {
+              setError("APIキーが設定されていません。QRコードを読み取って設定してください。");
+              setLoading(false);
+              setConfirmDialog(null);
+              return;
             }
+            const headers: HeadersInit = {
+              "X-API-Key": apiKey,
+            };
             const res = await fetchWithTimeout(`${api}/expenses/${id}`, { method: "DELETE", headers }, 10000);
             if (!res.ok) {
+              if (res.status === 401) {
+                throw new Error("認証に失敗しました。APIキーが正しくないか、QRコードを再読み取りしてください。");
+              }
               const text = await res.text();
               throw new Error(`削除に失敗: HTTP ${res.status}\n${text}`);
             }
