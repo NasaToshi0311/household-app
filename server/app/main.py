@@ -43,6 +43,11 @@ Base.metadata.create_all(bind=engine) # テーブルを作成
 def health(): # 健康状態を返すエンドポイント
     return {"status": "ok"} # 健康状態を返す
 
+@app.get("/favicon.ico") # faviconリクエスト用（404を返す）
+def favicon():
+    from fastapi.responses import Response
+    return Response(status_code=404)
+
 app.include_router(sync_router) # 同期ルーターを追加する
 app.include_router(expenses_router) # 支出ルーターを追加する
 app.include_router(stats_router) # 統計ルーターを追加する
