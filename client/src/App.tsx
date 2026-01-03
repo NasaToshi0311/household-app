@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { addPending, getAllPending, removePending, removeOnePending } from "./db";
 import type { PendingExpense } from "./db";
 import { useOnline } from "./hooks/useOnline";
+import { getApiBaseUrl } from "./config/api";
 import SummaryPage from "./pages/SummaryPage";
 import { syncExpenses } from "./api/expenses";
 import ApiUrlBox from "./components/ApiUrlBox";
@@ -46,8 +47,9 @@ export default function App() {
         alert(`同期完了（成功 ${result.ok_uuids.length} / 失敗 ${result.ng_uuids.length}）`);
       }
     } catch (e: any) {
-      if (e?.name === "AbortError") {
-        alert("同期失敗: タイムアウト");
+      if (e?.name === "AbortError" || e?.message?.includes("timeout")) {
+        const apiUrl = getApiBaseUrl();
+        alert(`同期失敗: タイムアウト\n\n確認事項:\n1. PC側のサーバーが起動しているか\n2. PCとスマホが同じネットワークに接続されているか\n3. 同期先URLが正しいか（${apiUrl || "未設定"}）\n4. ファイアウォールがブロックしていないか`);
       } else {
         alert(e?.message ?? "同期失敗");
       }

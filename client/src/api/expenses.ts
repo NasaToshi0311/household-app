@@ -23,6 +23,9 @@ export async function syncExpenses(items: PendingExpense[]) {
     "X-API-Key": apiKey,
   };
 
+  // タイムアウトを15秒に延長（テザリング環境での遅延を考慮）
+  const timeoutMs = 15000;
+
   const res = await fetchWithTimeout(
     `${api}/sync/expenses`,
     {
@@ -30,7 +33,7 @@ export async function syncExpenses(items: PendingExpense[]) {
       headers,
       body: JSON.stringify({ items }),
     },
-    8000
+    timeoutMs
   );
 
   if (!res.ok) {

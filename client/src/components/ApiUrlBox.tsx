@@ -198,19 +198,21 @@ export default function ApiUrlBox({
       {/* 同期ボタン */}
       <button
         onClick={onSync}
-        disabled={!online || syncing}
+        disabled={!online || syncing || !baseUrl}
         style={{
-          ...(online && !syncing ? S.btnPrimary : S.btn),
+          ...(online && !syncing && baseUrl ? S.btnPrimary : S.btn),
           width: "100%",
-          opacity: online && !syncing ? 1 : 0.6,
-          cursor: online && !syncing ? "pointer" : "not-allowed",
+          opacity: online && !syncing && baseUrl ? 1 : 0.6,
+          cursor: online && !syncing && baseUrl ? "pointer" : "not-allowed",
         }}
       >
         {syncing 
           ? "同期中..." 
-          : itemsCount > 0 
-            ? `未送信データを同期する（${itemsCount}件）`
-            : "同期する"}
+          : !baseUrl
+            ? "同期先URLを設定してください"
+            : itemsCount > 0 
+              ? `未送信データを同期する（${itemsCount}件）`
+              : "同期する"}
       </button>
 
       {/* APIキー状態表示 */}
