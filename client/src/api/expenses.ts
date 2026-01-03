@@ -26,6 +26,14 @@ export async function syncExpenses(items: PendingExpense[]) {
   // タイムアウトを15秒に延長（テザリング環境での遅延を考慮）
   const timeoutMs = 15000;
 
+  // デバッグ用: リクエスト情報をログ出力
+  console.log("同期リクエスト送信:", {
+    url: `${api}/sync/expenses`,
+    itemsCount: items.length,
+    hasApiKey: !!apiKey,
+    apiKeyLength: apiKey.length,
+  });
+
   const res = await fetchWithTimeout(
     `${api}/sync/expenses`,
     {

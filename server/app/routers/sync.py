@@ -17,6 +17,9 @@ MAX_SYNC_ITEMS = 1000
 
 @router.post("/expenses")
 def sync_expenses(payload: SyncExpensesRequest, db: Session = Depends(get_db)):
+    # デバッグ用: リクエスト受信をログ出力
+    logger.info(f"同期リクエスト受信: {len(payload.items)}件")
+    
     if not payload.items:
         return {"ok_uuids": [], "ng_uuids": []}
     
