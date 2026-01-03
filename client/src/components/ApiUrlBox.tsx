@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { getApiBaseUrl, setApiBaseUrl, setApiKey } from "../config/api";
+import { getApiBaseUrl, setApiBaseUrl, setApiKey, getApiKey } from "../config/api";
 import * as S from "../ui/styles";
 
 function HelpSection() {
@@ -212,6 +212,33 @@ export default function ApiUrlBox({
             ? `未送信データを同期する（${itemsCount}件）`
             : "同期する"}
       </button>
+
+      {/* APIキー状態表示 */}
+      {(() => {
+        const apiKey = getApiKey();
+        if (!apiKey) {
+          return (
+            <div style={{ 
+              ...S.warningBox, 
+              marginTop: 12,
+              background: "#fef3c7",
+              border: "2px solid #f59e0b",
+              color: "#92400e",
+            }}>
+              ⚠ APIキーが設定されていません。QRコードを読み取って設定してください。
+            </div>
+          );
+        }
+        return (
+          <div style={{ 
+            ...S.successBox, 
+            marginTop: 12,
+            fontSize: 12,
+          }}>
+            ✓ APIキーが設定されています（長さ: {apiKey.length}文字）
+          </div>
+        );
+      })()}
 
       {/* 状態表示 */}
       {!online && (
