@@ -31,10 +31,17 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
         # APIキーをヘッダーから取得
         api_key = request.headers.get("X-API-Key")
         
-        if not api_key or api_key != API_KEY:
+        if not api_key:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or missing API key"
+                detail="API key is missing. Please scan QR code to set API key."
+            )
+        
+        if api_key != API_KEY:
+            # デバッグ用: 実際のAPIキーはログに出力しない（セキュリティのため）
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Invalid API key. Expected length: {len(API_KEY)}, Received length: {len(api_key) if api_key else 0}"
             )
         
         return await call_next(request)
