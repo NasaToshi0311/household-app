@@ -1,73 +1,157 @@
-# React + TypeScript + Vite
+# Household App - クライアント（フロントエンド）
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+スマートフォン向けのPWA（Progressive Web App）として実装された家計簿アプリのフロントエンドです。
 
-Currently, two official plugins are available:
+## 概要
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- React + TypeScript + Vite で構築
+- PWA対応（オフライン入力可能）
+- IndexedDBによるローカルデータ保存
+- サーバー（FastAPI）への同期機能
 
-## React Compiler
+## 技術スタック
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **フレームワーク**: React 19.2.0
+- **ビルドツール**: Vite 7.2.4
+- **言語**: TypeScript 5.9.3
+- **PWA**: vite-plugin-pwa 1.2.0
+- **ローカルストレージ**: IndexedDB (idb 8.0.3)
+- **UUID生成**: uuid 13.0.0
 
-## Expanding the ESLint configuration
+## 開発環境のセットアップ
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### 前提条件
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- Node.js（npm）がインストールされていること
+- サーバー（FastAPI）が起動していること
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### インストール
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+cd client
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 開発サーバーの起動
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run dev
 ```
+
+開発サーバーは `http://localhost:5173` で起動します。
+
+### ビルド
+
+```bash
+npm run build
+```
+
+ビルド結果は `dist/` ディレクトリに出力されます。本番環境では、このディレクトリの内容をサーバー側の `server/static/dist/` にコピーして使用します。
+
+### プレビュー
+
+```bash
+npm run preview
+```
+
+ビルド結果をローカルでプレビューできます。
+
+## ディレクトリ構成
+
+```
+client/
+├── src/
+│   ├── api/          # API通信関連
+│   ├── components/    # Reactコンポーネント
+│   ├── config/       # 設定（API URL、APIキー）
+│   ├── constants/    # 定数定義
+│   ├── db.ts         # IndexedDB操作
+│   ├── hooks/        # カスタムフック
+│   ├── pages/        # ページコンポーネント
+│   ├── ui/           # UIスタイル
+│   ├── App.tsx       # メインアプリケーション
+│   └── main.tsx      # エントリーポイント
+├── public/           # 静的ファイル
+└── dist/             # ビルド出力（gitignore）
+```
+
+## 主な機能
+
+### 支出入力
+
+- 日付、金額、カテゴリ、メモ、支払者を入力
+- 入力データは即座にIndexedDBに保存（`status="pending"`）
+- オフラインでも入力可能
+
+### 同期機能
+
+- 未送信データ（`status="pending"`）をサーバーに送信
+- 同期成功したデータは`status="synced"`に更新
+- 同期失敗時もデータは保持され、次回再試行可能
+
+### 集計機能
+
+- 期間指定でローカルデータから集計
+- 合計金額、カテゴリ別集計、支払者別集計を表示
+- 明細一覧表示（最大50件）
+
+### QRコード設定
+
+- QRコードを読み取ってAPI URLとAPIキーを自動設定
+- 手動入力も可能
+
+## IndexedDB構造
+
+### expensesストア（メイン）
+
+- **キー**: `client_uuid` (Primary Key)
+- **インデックス**: `by-status` (statusフィールドで検索可能)
+- **データ型**: `Expense`
+
+```typescript
+type Expense = {
+  client_uuid: string;
+  date: string;              // ISO形式 (YYYY-MM-DD)
+  amount: number;
+  category: string;
+  note?: string;
+  paid_by: "me" | "her";
+  op: "upsert" | "delete";
+  status: "pending" | "synced";
+  updated_at: string;        // ISO形式の日時文字列
+};
+```
+
+### pendingストア（後方互換性）
+
+- 旧実装との互換性のため残存
+- 現在は使用されていない（自動的にexpensesストアに移行）
+
+### metaストア
+
+- マイグレーション状態の永続化用
+
+## 本番環境への反映
+
+フロントエンドを修正した場合は、以下の手順で本番環境に反映します：
+
+```bash
+# Reactを本番ビルド
+cd client
+npm run build
+
+# ビルド結果をサーバー側に反映
+cd ..
+xcopy client\dist server\static\dist /E /I /Y
+
+# APIコンテナを再起動（確実に反映させる）
+cd server
+docker compose restart api
+```
+
+## 注意点
+
+- 開発環境では `http://localhost:5173` で起動しますが、本番環境ではサーバー側の `/app` パスで配信されます
+- PWAとしてホーム画面に追加すると、オフラインでも入力可能です
+- 同期はオンライン時のみ実行可能です
+- API URLとAPIキーはローカルストレージ（localStorage）に保存されます
