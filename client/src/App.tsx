@@ -14,7 +14,6 @@ import * as S from "./ui/styles.ts";
 
 export default function App() {
   const [items, setItems] = useState<Expense[]>([]);
-  const [apiBaseUrl, setApiBaseUrlState] = useState<string>("");
 
   const [tab, setTab] = useState<"input" | "summary">("input");
   const online = useOnline();
@@ -109,7 +108,6 @@ export default function App() {
           online={online}
           syncing={syncing}
           onSync={sync}
-          onBaseUrlChange={(url) => setApiBaseUrlState(url)}
         />
       </div>
 
