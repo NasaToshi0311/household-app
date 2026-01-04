@@ -150,6 +150,26 @@ export async function hardDeleteExpense(client_uuid: string): Promise<void> {
 }
 
 /**
+ * 明細を論理削除（op="delete", status="pending"に更新）
+ * 次回同期時にサーバーへ送られ、deleted_atが立つ
+ */
+export async function markDeleteExpense(client_uuid: string): Promise<void> {
+  const db = await dbPromise;
+  const expense = await db.get("expenses", client_uuid);
+  if (!expense) {
+    throw new Error(`Expense not found: ${client_uuid}`);
+  }
+
+  const now = new Date().toISOString();
+  await db.put("expenses", {
+    ...expense,
+    op: "delete",
+    status: "pending",
+    updated_at: now,
+  });
+}
+
+/**
  * 同期成功したUUIDのステータスを"synced"に更新
  */
 export async function markSynced(okUuids: string[]): Promise<void> {

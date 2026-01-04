@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { payerLabel } from "../constants/payer";
-import { getExpensesByRange, getPendingCount, hardDeleteExpense, type Expense } from "../db";
+import { getExpensesByRange, getPendingCount, markDeleteExpense, type Expense } from "../db";
 
 type Summary = { start: string; end: string; total: number };
 type ByCategory = { category: string; total: number };
@@ -97,12 +97,12 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
     if (!clientUuid) return;
 
     setConfirmDialog({
-      message: "この明細を削除しますか？\n\nこの操作は取り消せません。",
+      message: "この明細を削除しますか？\n\n削除後、次回同期時にサーバーに反映されます。",
       onConfirm: async () => {
         setLoading(true);
         setError(null);
         try {
-          await hardDeleteExpense(clientUuid);
+          await markDeleteExpense(clientUuid);
           await calculateLocalSummary();
         } catch (err: any) {
           setError(err?.message ?? "削除エラー");
