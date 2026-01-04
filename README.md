@@ -22,7 +22,8 @@
 - 未送信データのローカル保存（IndexedDB）
 - オフライン対応（PWA）
 - 同期処理
-- QRコードによるAPI URL設定
+- QRコードによるAPI URL・APIキー自動設定
+- APIキー認証（セキュリティ対策）
 - 期間指定集計
 - カテゴリ別集計
 - 明細一覧表示
@@ -58,7 +59,9 @@ household-app/
 1. サーバーを起動（`cd server && docker compose up -d`）
 2. PCのIPアドレスを確認（例: `192.168.1.100`）
 3. スマホでフロントエンドにアクセス
-4. 同期先URLに `http://[PCのIP]:8000` を入力して保存
+4. 同期先URLとAPIキーを設定：
+   - **推奨**: QRコードで自動設定（`http://[PCのIP]:8000/sync/page` にアクセスしてQRコードを読み取る）
+   - **手動**: URLに `http://[PCのIP]:8000` を入力し、APIキーを設定（デフォルト: `household-app-secret-key-2024`）
 
 ### 日常的な使い方
 
@@ -67,9 +70,9 @@ household-app/
 3. 「同期する」ボタンを押してPCのAPIに送信
 4. 「集計」タブで期間を指定して集計・明細を確認
 
-### QRコードでURL設定（オプション）
+### QRコードでURL・APIキー設定（推奨）
 
-PCのブラウザで `http://[PCのIP]:8000/sync/page` にアクセスし、表示されたQRコードをスマホのカメラで読み取ると、自動的にAPI URLが設定されます。
+PCのブラウザで `http://[PCのIP]:8000/sync/page` にアクセスし、表示されたQRコードをスマホのカメラで読み取ると、自動的にAPI URLとAPIキーが設定されます。手動入力よりも簡単で確実です。
 
 ## コマンドリファレンス
 
@@ -129,6 +132,8 @@ npm run preview
 
 ### データベースバックアップ
 
+#### 手動バックアップ
+
 ```bash
 # DBバックアップ作成
 cd server
@@ -138,12 +143,20 @@ docker compose exec -T db pg_dump -U household household > expenses_YYYY-MM-DD.s
 docker compose exec -T db psql -U household -d household < expenses_YYYY-MM-DD.sql
 ```
 
-**注意**: PostgreSQLのバックアップは OneDrive に保存する。
+#### 自動バックアップ（PowerShellスクリプト）
+
+`server/backup_db.ps1` を実行すると、以下の処理が行われます：
+
+- OneDriveの `household-app-backup/db` ディレクトリにバックアップを保存
+- 30日より古いSQLファイルを自動削除
+- ファイル名は `expenses_YYYY-MM-DD.sql` 形式
 
 ```powershell
 cd server
-docker compose exec -T db pg_dump -U household household > expenses_YYYY-MM-DD.sql
+.\backup_db.ps1
 ```
+
+**注意**: バックアップは OneDrive に自動保存されます。定期的に実行することを推奨します。
 
 ### Git操作
 
@@ -180,18 +193,41 @@ xcopy client\dist server\static\dist /E /I /Y
 # APIコンテナを再起動（確実に反映させる）
 cd server
 docker compose restart api
+```
 
+## 環境変数設定
+
+`server/docker-compose.yml` で以下の環境変数を設定できます：
+
+- `API_KEY`: APIキー（デフォルト: `household-app-secret-key-2024`）
+- `CORS_ORIGINS`: CORS許可オリジン（カンマ区切り）
+- `HOST_IP`: PCのIPアドレス（QRコード生成時に使用）
+
+例：
+```yaml
+environment:
+  API_KEY: "your-secret-key-here"
+  CORS_ORIGINS: "http://localhost:5173,http://192.168.1.100:8000"
+  HOST_IP: "192.168.1.100"
+```
 
 ## 注意点
 
 - PCとスマホは同一ネットワーク（テザリング可）で接続する必要があります
-- 初回はAPIのURLを入力して保存するか、QRコードで設定してください
-- DBデータはローカル環境のため、定期的にバックアップを取ることを推奨します
+- 初回はAPIのURLとAPIキーを設定してください（QRコード推奨）
+- APIキー認証により、同一ネットワーク内でも不正アクセスを防止しています
+- DBデータはローカル環境のため、定期的にバックアップを取ることを推奨します（`backup_db.ps1` を使用）
 - PWAとしてホーム画面に追加すると、オフラインでも入力可能です
 - 同期はオンライン時のみ実行可能です
+
+## セキュリティ
+
+- **APIキー認証**: すべてのAPIリクエストにAPIキーが必要です（`X-API-Key` ヘッダー）
+- **CORS設定**: 許可されたオリジンのみアクセス可能
+- **認証不要パス**: `/health`, `/docs`, `/sync/page`, `/sync/qr.png`, `/sync/url`, `/app` は認証不要
 
 ## ライセンス・注意
 
 - 本アプリは個人利用を想定しています
-- セキュリティ対策（認証・HTTPS等）は最低限です
-- 外部公開や商用利用には追加対策が必要です
+- APIキー認証により基本的なセキュリティ対策を実装していますが、HTTPS未対応です
+- 外部公開や商用利用には追加対策（HTTPS、より強固な認証等）が必要です
