@@ -21,7 +21,7 @@ function endOfMonth(d: Date) {
   return new Date(d.getFullYear(), d.getMonth() + 1, 0);
 }
 
-export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
+export default function SummaryPage() {
   const today = useMemo(() => new Date(), []);
   const [start, setStart] = useState<string>(ymd(startOfMonth(today)));
   const [end, setEnd] = useState<string>(ymd(endOfMonth(today)));

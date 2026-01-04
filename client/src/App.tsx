@@ -140,7 +140,7 @@ export default function App() {
         minHeight: "400px",
       }}>
         {tab === "summary" ? (
-          <SummaryPage baseUrl={apiBaseUrl} />
+          <SummaryPage />
         ) : (
           <>
             <div style={{ ...S.card, border: "none", boxShadow: "none", padding: 0 }}>
