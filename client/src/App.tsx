@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
-import { addPending, getAllPending, removePending, removeOnePending } from "./db";
-import type { PendingExpense } from "./db";
+import { upsertExpense, getPendingExpenses, hardDeleteExpense, markSynced } from "./db";
+import type { Expense, ExpenseInput } from "./db";
 import { useOnline } from "./hooks/useOnline";
 import { getApiBaseUrl } from "./config/api";
 import SummaryPage from "./pages/SummaryPage";
@@ -13,7 +13,7 @@ import * as S from "./ui/styles.ts";
 
 
 export default function App() {
-  const [items, setItems] = useState<PendingExpense[]>([]);
+  const [items, setItems] = useState<Expense[]>([]);
   const [apiBaseUrl, setApiBaseUrlState] = useState<string>("");
 
   const [tab, setTab] = useState<"input" | "summary">("input");
@@ -25,7 +25,7 @@ export default function App() {
   } | null>(null);
 
   const refresh = useCallback(async () => {
-    setItems(await getAllPending());
+    setItems(await getPendingExpenses());
   }, []);
 
   useEffect(() => {
@@ -37,12 +37,12 @@ export default function App() {
     setSyncing(true);
 
     try {
-      const latest = await getAllPending();
+      const latest = await getPendingExpenses();
       if (latest.length === 0) {
         alert("未送信がありません");
       } else {
         const result = await syncExpenses(latest);
-        await removePending(result.ok_uuids);
+        await markSynced(result.ok_uuids);
         await refresh();
         alert(`同期完了（成功 ${result.ok_uuids.length} / 失敗 ${result.ng_uuids.length}）`);
       }
@@ -146,7 +146,15 @@ export default function App() {
             <div style={{ ...S.card, border: "none", boxShadow: "none", padding: 0 }}>
               <ExpenseForm
                 onAdd={async (item) => {
-                  await addPending({ ...item, op: "upsert" });
+                  const input: ExpenseInput = {
+                    client_uuid: item.client_uuid,
+                    date: item.date,
+                    amount: item.amount,
+                    category: item.category,
+                    note: item.note,
+                    paid_by: item.paid_by,
+                  };
+                  await upsertExpense(input);
                   await refresh();
                 }}
               />
@@ -161,7 +169,7 @@ export default function App() {
                   setConfirmDialog({
                     message: "未送信データを削除しますか？\n\nこの操作は取り消せません。",
                     onConfirm: async () => {
-                      await removeOnePending(id);
+                      await hardDeleteExpense(id);
                       await refresh();
                       setConfirmDialog(null);
                     },

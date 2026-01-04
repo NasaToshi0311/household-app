@@ -1,8 +1,8 @@
 import { fetchWithTimeout } from "./fetch.ts";
-import type { PendingExpense } from "../db";
+import type { Expense, PendingExpense } from "../db";
 import { getApiBaseUrl, getApiKey } from "../config/api";
 
-export async function syncExpenses(items: PendingExpense[]) {
+export async function syncExpenses(items: Expense[]) {
   const saved = getApiBaseUrl().trim();
   if (!saved) throw new Error("同期先URLを入力してください");
 
@@ -26,10 +26,21 @@ export async function syncExpenses(items: PendingExpense[]) {
   // タイムアウトを15秒に延長（テザリング環境での遅延を考慮）
   const timeoutMs = 15000;
 
+  // Expense型からPendingExpense型に変換（statusとupdated_atを除く）
+  const payloadItems: PendingExpense[] = items.map((item) => ({
+    client_uuid: item.client_uuid,
+    date: item.date,
+    amount: item.amount,
+    category: item.category,
+    note: item.note,
+    paid_by: item.paid_by,
+    op: item.op,
+  }));
+
   // デバッグ用: リクエスト情報をログ出力
   console.log("同期リクエスト送信:", {
     url: `${api}/sync/expenses`,
-    itemsCount: items.length,
+    itemsCount: payloadItems.length,
     hasApiKey: !!apiKey,
     apiKeyLength: apiKey.length,
   });
@@ -39,7 +50,7 @@ export async function syncExpenses(items: PendingExpense[]) {
     {
       method: "POST",
       headers,
-      body: JSON.stringify({ items }),
+      body: JSON.stringify({ items: payloadItems }),
     },
     timeoutMs
   );

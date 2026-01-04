@@ -1,23 +1,11 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { useOnline } from "../hooks/useOnline";
-import { fetchWithTimeout } from "../api/fetch";
-import { getApiKey } from "../config/api";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { payerLabel } from "../constants/payer";
-import { getAllPending, addPending, type PendingExpense } from "../db";
+import { getExpensesByRange, getPendingCount, hardDeleteExpense, type Expense } from "../db";
 
 type Summary = { start: string; end: string; total: number };
 type ByCategory = { category: string; total: number };
 type ByPayer = { paid_by: string | null; total: number };
-type Expense = {
-  id?: number;
-  client_uuid?: string;
-  date: string;
-  amount: number;
-  category: string;
-  note?: string | null;
-  paid_by?: string | null;
-};
 
 function ymd(d: Date) {
   const yyyy = d.getFullYear();
@@ -45,64 +33,14 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
   const [byCategory, setByCategory] = useState<ByCategory[]>([]);
   const [byPayer, setByPayer] = useState<ByPayer[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [pendingCount, setPendingCount] = useState<number>(0);
   const [confirmDialog, setConfirmDialog] = useState<{
     message: string;
     onConfirm: () => void;
   } | null>(null);
 
-  const online = useOnline();
-
-
-  const api = baseUrl.replace(/\/$/, "");
-
   // ローカルデータから集計を計算
-  const calculateLocalSummary = useCallback((pendingItems: PendingExpense[]) => {
-    const filtered = pendingItems.filter(item => {
-      if (item.op === "delete") return false;
-      return item.date >= start && item.date <= end;
-    });
-
-    const total = filtered.reduce((sum, item) => sum + item.amount, 0);
-
-    const categoryMap = new Map<string, number>();
-    const payerMap = new Map<string | null, number>();
-
-    filtered.forEach(item => {
-      categoryMap.set(item.category, (categoryMap.get(item.category) || 0) + item.amount);
-      payerMap.set(item.paid_by, (payerMap.get(item.paid_by) || 0) + item.amount);
-    });
-
-    const byCategory: ByCategory[] = Array.from(categoryMap.entries())
-      .map(([category, total]) => ({ category, total }))
-      .sort((a, b) => b.total - a.total);
-
-    const byPayer: ByPayer[] = Array.from(payerMap.entries())
-      .map(([paid_by, total]) => ({ paid_by, total }))
-      .sort((a, b) => b.total - a.total);
-
-    const expenses: Expense[] = filtered
-      .sort((a, b) => {
-        const dateCompare = b.date.localeCompare(a.date);
-        if (dateCompare !== 0) return dateCompare;
-        return b.client_uuid.localeCompare(a.client_uuid);
-      })
-      .slice(0, 50)
-      .map(item => ({
-        client_uuid: item.client_uuid,
-        date: item.date,
-        amount: item.amount,
-        category: item.category,
-        note: item.note || null,
-        paid_by: item.paid_by,
-      }));
-
-    setSummary({ start, end, total });
-    setByCategory(byCategory);
-    setByPayer(byPayer);
-    setExpenses(expenses);
-  }, [start, end]);
-
-  const fetchAll = useCallback(async () => {
+  const calculateLocalSummary = useCallback(async () => {
     // 日付範囲のバリデーション
     if (start > end) {
       setError("開始日は終了日より前である必要があります");
@@ -111,161 +49,63 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
 
     setLoading(true);
     setError(null);
+
     try {
-      if (!online || !api) {
-        // オフライン時またはAPI未設定時はローカルデータから集計
-        const pendingItems = await getAllPending();
-        calculateLocalSummary(pendingItems);
-        if (!api) {
-          setError("同期先URLを入力してから集計してね（オフライン時はローカルデータのみ表示）");
-        }
-      } else {
-        // オンライン時はAPIから取得
-        const qs = `start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+      // IndexedDBから期間で絞り込んだデータを取得
+      const filtered = await getExpensesByRange(start, end);
+      const pending = await getPendingCount();
 
-        const apiKey = getApiKey();
-        if (!apiKey) {
-          throw new Error("APIキーが設定されていません。QRコードを読み取って設定してください。");
-        }
+      const total = filtered.reduce((sum, item) => sum + item.amount, 0);
 
-        const headers: HeadersInit = {
-          "X-API-Key": apiKey,
-        };
+      const categoryMap = new Map<string, number>();
+      const payerMap = new Map<string | null, number>();
 
-        // タイムアウトを15秒に延長（テザリング環境での遅延を考慮）
-        const timeoutMs = 15000;
-        
-        const [sRes, cRes, pRes, eRes] = await Promise.all([
-          fetchWithTimeout(`${api}/summary?${qs}`, { headers }, timeoutMs),
-          fetchWithTimeout(`${api}/summary/by-category?${qs}`, { headers }, timeoutMs),
-          fetchWithTimeout(`${api}/summary/by-payer?${qs}`, { headers }, timeoutMs),
-          fetchWithTimeout(`${api}/summary/expenses?${qs}&limit=50&offset=0`, { headers }, timeoutMs),
-        ]);
+      filtered.forEach((item) => {
+        categoryMap.set(item.category, (categoryMap.get(item.category) || 0) + item.amount);
+        payerMap.set(item.paid_by, (payerMap.get(item.paid_by) || 0) + item.amount);
+      });
 
-        if (!sRes.ok) {
-          if (sRes.status === 401) {
-            throw new Error("認証に失敗しました。APIキーが正しくないか、QRコードを再読み取りしてください。");
-          }
-          throw new Error("合計の取得に失敗");
-        }
-        if (!cRes.ok) {
-          if (cRes.status === 401) {
-            throw new Error("認証に失敗しました。APIキーが正しくないか、QRコードを再読み取りしてください。");
-          }
-          throw new Error("カテゴリ別の取得に失敗");
-        }
-        if (!pRes.ok) {
-          if (pRes.status === 401) {
-            throw new Error("認証に失敗しました。APIキーが正しくないか、QRコードを再読み取りしてください。");
-          }
-          throw new Error("支払者別の取得に失敗");
-        }
-        if (!eRes.ok) {
-          if (eRes.status === 401) {
-            throw new Error("認証に失敗しました。APIキーが正しくないか、QRコードを再読み取りしてください。");
-          }
-          throw new Error("明細の取得に失敗");
-        }
+      const byCategory: ByCategory[] = Array.from(categoryMap.entries())
+        .map(([category, total]) => ({ category, total }))
+        .sort((a, b) => b.total - a.total);
 
-        const s: Summary = await sRes.json();
-        const c: ByCategory[] = await cRes.json();
-        const p: ByPayer[] = await pRes.json();
-        const e: Expense[] = await eRes.json();
+      const byPayer: ByPayer[] = Array.from(payerMap.entries())
+        .map(([paid_by, total]) => ({ paid_by, total }))
+        .sort((a, b) => b.total - a.total);
 
-        setSummary(s);
-        setByCategory(c);
-        setByPayer(p);
-        setExpenses(e);
-      }
+      const expensesList: Expense[] = filtered
+        .sort((a, b) => {
+          const dateCompare = b.date.localeCompare(a.date);
+          if (dateCompare !== 0) return dateCompare;
+          return b.client_uuid.localeCompare(a.client_uuid);
+        })
+        .slice(0, 50);
+
+      setSummary({ start, end, total });
+      setByCategory(byCategory);
+      setByPayer(byPayer);
+      setExpenses(expensesList);
+      setPendingCount(pending);
     } catch (err: any) {
-      let errorMessage = err?.message ?? "エラー";
-      
-      // タイムアウトエラーの場合、より詳細な情報を提供
-      if (err?.name === "AbortError" || errorMessage.includes("timeout")) {
-        errorMessage = `タイムアウト: サーバーに接続できませんでした。\n\n確認事項:\n1. PC側のサーバーが起動しているか\n2. PCとスマホが同じネットワークに接続されているか\n3. 同期先URLが正しいか（${api || "未設定"}）\n4. APIキーが設定されているか`;
-      }
-      
-      setError(errorMessage);
-      // エラー時はローカルデータから集計を試みる
-      try {
-        const pendingItems = await getAllPending();
-        calculateLocalSummary(pendingItems);
-      } catch (localErr) {
-        // ローカルデータの取得も失敗した場合は何もしない
-      }
+      setError(err?.message ?? "エラー");
     } finally {
       setLoading(false);
     }
-  }, [api, start, end, online, calculateLocalSummary]);
+  }, [start, end]);
 
-  async function deleteExpense(id?: number, clientUuid?: string) {
-    if (!id && !clientUuid) return;
-
-    const isLocalDelete = !online || !api || !!clientUuid;
-    const deleteMessage = isLocalDelete
-      ? "この明細を削除しますか？\n\nオフライン時はローカルデータから削除されます。オンライン時に同期されます。"
-      : "この明細を削除しますか？\n\n論理削除されます。この操作は取り消せません。";
+  async function deleteExpense(clientUuid: string) {
+    if (!clientUuid) return;
 
     setConfirmDialog({
-      message: deleteMessage,
+      message: "この明細を削除しますか？\n\nこの操作は取り消せません。",
       onConfirm: async () => {
         setLoading(true);
         setError(null);
         try {
-          if (isLocalDelete) {
-            // オフライン時またはローカルデータの削除
-            // 削除リクエストをIndexedDBに保存
-            if (clientUuid) {
-              const pendingItems = await getAllPending();
-              const item = pendingItems.find(p => p.client_uuid === clientUuid);
-              if (item) {
-                // 既存のアイテムを削除リクエストに変更
-                await addPending({
-                  ...item,
-                  op: "delete",
-                });
-              }
-            } else if (id) {
-              // サーバーから取得したデータの場合、削除リクエストを新規作成
-              const expense = expenses.find(e => e.id === id);
-              if (expense) {
-                await addPending({
-                  client_uuid: `delete-${id}-${Date.now()}`,
-                  date: expense.date,
-                  amount: expense.amount,
-                  category: expense.category,
-                  note: expense.note || undefined,
-                  paid_by: (expense.paid_by as "me" | "her") || "me",
-                  op: "delete",
-                });
-              }
-            }
-            await fetchAll();
-          } else if (online && api && id) {
-            // オンライン時のサーバー削除
-            const apiKey = getApiKey();
-            if (!apiKey) {
-              setError("APIキーが設定されていません。QRコードを読み取って設定してください。");
-              setLoading(false);
-              setConfirmDialog(null);
-              return;
-            }
-            const headers: HeadersInit = {
-              "X-API-Key": apiKey,
-            };
-            const res = await fetchWithTimeout(`${api}/expenses/${id}`, { method: "DELETE", headers }, 10000);
-            if (!res.ok) {
-              if (res.status === 401) {
-                throw new Error("認証に失敗しました。APIキーが正しくないか、QRコードを再読み取りしてください。");
-              }
-              const text = await res.text();
-              throw new Error(`削除に失敗: HTTP ${res.status}\n${text}`);
-            }
-            await fetchAll();
-          }
+          await hardDeleteExpense(clientUuid);
+          await calculateLocalSummary();
         } catch (err: any) {
           setError(err?.message ?? "削除エラー");
-          await fetchAll();
         } finally {
           setLoading(false);
           setConfirmDialog(null);
@@ -273,13 +113,11 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
       },
     });
   }
-  
 
-  // baseUrl が入ったら自動で1回取得（QRから入ってきた時に便利）
-  // オフライン時でもローカルデータを表示
+  // 初期表示とstart/end変更時に集計
   useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
+    calculateLocalSummary();
+  }, [calculateLocalSummary]);
 
   function setThisMonth() {
     const d = new Date();
@@ -309,32 +147,24 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
     <div style={{ maxWidth: 520, margin: "0 auto", padding: 8, fontFamily: "system-ui" }}>
       <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 16, color: "#1f2937" }}>集計</h2>
 
-      {!online && (
-        <div style={{ 
-          background: "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)", 
-          border: "2px solid #3b82f6", 
-          padding: 14, 
-          borderRadius: 12, 
+      <div
+        style={{
+          background: "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)",
+          border: "2px solid #3b82f6",
+          padding: 14,
+          borderRadius: 12,
           marginBottom: 16,
           color: "#1e40af",
           fontWeight: 500,
-        }}>
-          オフライン mode: ローカルデータのみ表示中
-        </div>
-      )}
-      {!api && online && (
-        <div style={{ 
-          background: "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)", 
-          border: "2px solid #f59e0b", 
-          padding: 14, 
-          borderRadius: 12, 
-          marginBottom: 16,
-          color: "#92400e",
-          fontWeight: 500,
-        }}>
-          同期先URLが未設定です（上の入力欄に <b>http://192.168.x.x:8000</b> を入れてね）
-        </div>
-      )}
+        }}
+      >
+        ローカル集計（未同期含む）
+        {pendingCount > 0 && (
+          <div style={{ marginTop: 8, fontSize: 14, fontWeight: 600 }}>
+            未同期件数: {pendingCount}件
+          </div>
+        )}
+      </div>
 
       <div
         style={{
@@ -350,10 +180,10 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
             type="date"
             value={start}
             onChange={(e) => setStart(e.target.value)}
-            style={{ 
-              width: "100%", 
-              padding: 12, 
-              borderRadius: 12, 
+            style={{
+              width: "100%",
+              padding: 12,
+              borderRadius: 12,
               border: "2px solid #e0e0e0",
               fontSize: 15,
               transition: "border-color 0.2s",
@@ -366,10 +196,10 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
             type="date"
             value={end}
             onChange={(e) => setEnd(e.target.value)}
-            style={{ 
-              width: "100%", 
-              padding: 12, 
-              borderRadius: 12, 
+            style={{
+              width: "100%",
+              padding: 12,
+              borderRadius: 12,
               border: "2px solid #e0e0e0",
               fontSize: 15,
               transition: "border-color 0.2s",
@@ -378,38 +208,46 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
         </div>
 
         <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button onClick={setThisMonth} style={btnStyle}>今月</button>
-          <button onClick={setLastMonth} style={btnStyle}>先月</button>
-          <button onClick={setLast7Days} style={btnStyle}>直近7日</button>
-          <button 
-            onClick={fetchAll} 
-            style={{ 
-              ...btnStyle, 
+          <button onClick={setThisMonth} style={btnStyle}>
+            今月
+          </button>
+          <button onClick={setLastMonth} style={btnStyle}>
+            先月
+          </button>
+          <button onClick={setLast7Days} style={btnStyle}>
+            直近7日
+          </button>
+          <button
+            onClick={calculateLocalSummary}
+            style={{
+              ...btnStyle,
               fontWeight: 700,
-              background: loading 
-                ? "#e5e7eb" 
+              background: loading
+                ? "#e5e7eb"
                 : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
               color: loading ? "#9ca3af" : "#fff",
               border: loading ? "2px solid #d1d5db" : "2px solid #667eea",
               boxShadow: loading ? "none" : "0 2px 8px rgba(102, 126, 234, 0.4)",
-            }} 
+            }}
             disabled={loading}
           >
-            {loading ? "取得中..." : "集計する"}
+            {loading ? "集計中..." : "集計する"}
           </button>
         </div>
       </div>
 
       {error && (
-        <div style={{ 
-          background: "linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)", 
-          border: "2px solid #ef4444", 
-          padding: 14, 
-          borderRadius: 12, 
-          marginBottom: 16,
-          color: "#991b1b",
-          fontWeight: 500,
-        }}>
+        <div
+          style={{
+            background: "linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)",
+            border: "2px solid #ef4444",
+            padding: 14,
+            borderRadius: 12,
+            marginBottom: 16,
+            color: "#991b1b",
+            fontWeight: 500,
+          }}
+        >
           {error}
         </div>
       )}
@@ -431,32 +269,30 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
         >
           ¥{totalText}
         </div>
-        <div style={{ fontSize: 13, color: "#6b7280", marginTop: 6, fontWeight: 500 }}>合計（支出）</div>
+        <div style={{ fontSize: 13, color: "#6b7280", marginTop: 6, fontWeight: 500 }}>
+          合計（支出）
+        </div>
       </div>
 
       <div style={{ height: 12 }} />
 
       <div style={cardStyle}>
-        <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16, color: "#1f2937" }}>カテゴリ別</div>
+        <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16, color: "#1f2937" }}>
+          カテゴリ別
+        </div>
         {byCategory.length === 0 ? (
           <div style={{ color: "#9ca3af", fontSize: 14, fontStyle: "italic" }}>データなし</div>
         ) : (
           <div style={{ display: "grid", gap: 8 }}>
             {byCategory.slice(0, 10).map((c, idx) => {
-              const colors = [
-                "#667eea",
-                "#f5576c",
-                "#4facfe",
-                "#43e97b",
-                "#fa709a",
-              ];
+              const colors = ["#667eea", "#f5576c", "#4facfe", "#43e97b", "#fa709a"];
               const color = colors[idx % colors.length];
               return (
-                <div 
-                  key={c.category} 
-                  style={{ 
-                    display: "flex", 
-                    justifyContent: "space-between", 
+                <div
+                  key={c.category}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
                     gap: 8,
                     padding: "10px 12px",
                     borderRadius: 10,
@@ -465,10 +301,12 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
                   }}
                 >
                   <div style={{ color: "#1f2937", fontWeight: 600 }}>{c.category}</div>
-                  <div style={{ 
-                    fontWeight: 700, 
-                    color: color,
-                  }}>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      color: color,
+                    }}
+                  >
                     ¥{c.total.toLocaleString("ja-JP")}
                   </div>
                 </div>
@@ -481,29 +319,26 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
       <div style={{ height: 12 }} />
 
       <div style={cardStyle}>
-        <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16, color: "#1f2937" }}>支払者別</div>
+        <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16, color: "#1f2937" }}>
+          支払者別
+        </div>
         {byPayer.length === 0 ? (
           <div style={{ color: "#9ca3af", fontSize: 14, fontStyle: "italic" }}>データなし</div>
         ) : (
           <div style={{ display: "grid", gap: 8 }}>
             {byPayer.map((p, idx) => {
-              const colors = [
-                "#667eea",
-                "#f5576c",
-                "#4facfe",
-                "#43e97b",
-                "#fa709a",
-              ];
+              const colors = ["#667eea", "#f5576c", "#4facfe", "#43e97b", "#fa709a"];
               const color = colors[idx % colors.length];
-              const payerName = p.paid_by && (p.paid_by === "me" || p.paid_by === "her") 
-                ? payerLabel[p.paid_by] 
-                : p.paid_by ?? "未設定";
+              const payerName =
+                p.paid_by && (p.paid_by === "me" || p.paid_by === "her")
+                  ? payerLabel[p.paid_by]
+                  : p.paid_by ?? "未設定";
               return (
-                <div 
-                  key={p.paid_by ?? "null"} 
-                  style={{ 
-                    display: "flex", 
-                    justifyContent: "space-between", 
+                <div
+                  key={p.paid_by ?? "null"}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
                     gap: 8,
                     padding: "10px 12px",
                     borderRadius: 10,
@@ -512,10 +347,12 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
                   }}
                 >
                   <div style={{ color: "#1f2937", fontWeight: 600 }}>{payerName}</div>
-                  <div style={{ 
-                    fontWeight: 700, 
-                    color: color,
-                  }}>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      color: color,
+                    }}
+                  >
                     ¥{p.total.toLocaleString("ja-JP")}
                   </div>
                 </div>
@@ -528,7 +365,9 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
       <div style={{ height: 12 }} />
 
       <div style={cardStyle}>
-        <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16, color: "#1f2937" }}>明細（最新50件）</div>
+        <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16, color: "#1f2937" }}>
+          明細（最新50件）
+        </div>
         {expenses.length === 0 ? (
           <div style={{ color: "#9ca3af", fontSize: 14, fontStyle: "italic" }}>データなし</div>
         ) : (
@@ -536,7 +375,7 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
             {expenses.map((e, idx) => {
               return (
                 <div
-                  key={e.id ?? `${e.date}-${e.amount}-${e.category}-${idx}`}
+                  key={e.client_uuid ?? `${e.date}-${e.amount}-${e.category}-${idx}`}
                   style={{
                     padding: 14,
                     borderRadius: 12,
@@ -547,22 +386,30 @@ export default function SummaryPage({ baseUrl }: { baseUrl: string }) {
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>{e.date}</div>
-                      <div style={{ fontWeight: 700, color: "#1f2937", marginBottom: 4 }}>{e.category}</div>
-                      {e.note ? <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{e.note}</div> : null}
+                      <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
+                        {e.date}
+                      </div>
+                      <div style={{ fontWeight: 700, color: "#1f2937", marginBottom: 4 }}>
+                        {e.category}
+                      </div>
+                      {e.note ? (
+                        <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{e.note}</div>
+                      ) : null}
                     </div>
                     <div style={{ display: "grid", justifyItems: "end", gap: 8 }}>
-                      <div style={{ 
-                        fontWeight: 800, 
-                        fontSize: 18,
-                        color: "#667eea",
-                      }}>
+                      <div
+                        style={{
+                          fontWeight: 800,
+                          fontSize: 18,
+                          color: "#667eea",
+                        }}
+                      >
                         ¥{e.amount.toLocaleString("ja-JP")}
                       </div>
 
                       <button
                         onClick={() => {
-                          deleteExpense(e.id, e.client_uuid);
+                          deleteExpense(e.client_uuid);
                         }}
                         disabled={loading}
                         style={{

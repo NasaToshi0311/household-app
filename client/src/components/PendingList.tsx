@@ -1,9 +1,9 @@
-import type { PendingExpense } from "../db";
+import type { Expense } from "../db";
 import * as S from "../ui/styles";
 import { payerLabel } from "../constants/payer";
 
 type Props = {
-  items: PendingExpense[];
+  items: Expense[];
   onDeleteOne: (clientUuid: string) => Promise<void> | void;
 };
 
