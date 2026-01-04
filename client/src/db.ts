@@ -33,66 +33,74 @@ interface HouseholdDB extends DBSchema {
     key: string;
     value: PendingExpense;
   };
+  meta: {
+    key: string;
+    value: { key: string; value: boolean };
+  };
 }
-
-let migrationDone = false;
 
 export const dbPromise = openDB<HouseholdDB>("household-db", 2, {
   upgrade(db, oldVersion) {
     if (oldVersion < 2) {
       // version 1から2へのアップグレード
-      // expensesストアを作成
+      // スキーマ変更のみ: expensesストアとindex(by-status)を作成
       const expensesStore = db.createObjectStore("expenses", {
         keyPath: "client_uuid",
       });
       expensesStore.createIndex("by-status", "status");
+      // pendingストアは削除しない（安全のため残す）
+      // metaストアを作成（migration状態の永続化用）
+      db.createObjectStore("meta", { keyPath: "key" });
     }
   },
 }).then(async (db) => {
-  // 初回のみ移行処理を実行
-  if (!migrationDone && db.objectStoreNames.contains("pending")) {
-    migrationDone = true;
+  // DBオープン後のデータ移行処理（1回だけ実行）
+  const migrationDone = await db.get("meta", "migration_v2_done");
+  if (!migrationDone) {
     await migratePendingToExpenses(db);
+    await db.put("meta", { key: "migration_v2_done", value: true });
   }
   return db;
 });
 
-// pendingストアからexpensesストアへの移行を実行
+/**
+ * pendingストアからexpensesストアへのデータ移行
+ * （DBオープン後の通常コードで実行）
+ */
 async function migratePendingToExpenses(db: Awaited<typeof dbPromise>) {
   try {
-    // 古いバージョンのDBを直接開いてpendingデータを取得
-    const oldDbRequest = indexedDB.open("household-db", 1);
-    const oldDb: IDBDatabase = await new Promise((resolve, reject) => {
-      oldDbRequest.onsuccess = () => resolve(oldDbRequest.result);
-      oldDbRequest.onerror = () => reject(oldDbRequest.error);
-    });
-
-    const pendingStore = oldDb.transaction("pending", "readonly").objectStore("pending");
-    const getAllRequest = pendingStore.getAll();
-    
-    const pendingItems: PendingExpense[] = await new Promise((resolve, reject) => {
-      getAllRequest.onsuccess = () => resolve(getAllRequest.result);
-      getAllRequest.onerror = () => reject(getAllRequest.error);
-    });
-
-    oldDb.close();
-
-    if (pendingItems.length > 0) {
-      // expensesストアにデータを移行
-      const now = new Date().toISOString();
-      const tx = db.transaction("expenses", "readwrite");
-      for (const item of pendingItems) {
-        await tx.store.put({
-          ...item,
-          status: "pending" as const,
-          updated_at: now,
-        });
-      }
-      await tx.done;
+    // expensesが空 かつ pendingが存在する場合のみ移行
+    const expensesCount = await db.count("expenses");
+    if (expensesCount > 0) {
+      // 既にデータが存在する場合は移行しない
+      return;
     }
 
-    // pendingストアを削除（DBを再作成する必要があるため、実際には次のDBオープン時に削除される）
-    // 注意: idb v8ではストアを直接削除できないため、アプリケーション側でpendingストアは使用しない
+    if (!db.objectStoreNames.contains("pending")) {
+      // pendingストアが存在しない場合は移行しない
+      return;
+    }
+
+    // pendingのgetAll()を実行
+    const pendingItems = await db.getAll("pending");
+    if (pendingItems.length === 0) {
+      // データがない場合は移行しない
+      return;
+    }
+
+    // 各itemをexpensesにput
+    const now = new Date().toISOString();
+    const tx = db.transaction("expenses", "readwrite");
+    for (const item of pendingItems) {
+      await tx.store.put({
+        ...item,
+        status: "pending" as const,
+        updated_at: now,
+      });
+    }
+    await tx.done;
+
+    // 移行完了後はpendingを参照しない（削除はしない）
   } catch (error) {
     console.error("Migration failed:", error);
     // 移行に失敗しても続行
@@ -189,6 +197,5 @@ export async function getExpensesByRange(
 export async function getPendingCount(): Promise<number> {
   const db = await dbPromise;
   const index = db.transaction("expenses").store.index("by-status");
-  const pending = await index.getAll("pending");
-  return pending.length;
+  return index.count("pending");
 }
