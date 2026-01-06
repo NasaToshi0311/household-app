@@ -1,6 +1,5 @@
 import socket
 import qrcode
-import json
 import os
 from urllib.parse import quote
 from io import BytesIO
@@ -57,16 +56,11 @@ def sync_qr_png():
     try:
         ip = get_lan_ip()
         base_url = f"http://{ip}:8000"
-        # QRコードにアプリのURLとJSONデータを含める
-        # スマホで読み取った後、アプリが開くようにする
-        qr_data = {
-            "base_url": base_url,
-            "api_key": API_KEY,
-        }
-        # JSONをURLエンコードしてアプリのURLに含める
+        # QRコードに /sync/url を指す sync_url クエリを埋め込む
+        # APIキーをURLに載せないため、この方式を使用
+        sync_url = f"{base_url}/sync/url"
         app_url = "https://household-app.vercel.app"
-        qr_json = json.dumps(qr_data)
-        qr_url = f"{app_url}?qr_data={quote(qr_json)}"
+        qr_url = f"{app_url}?sync_url={quote(sync_url)}"
 
         img = qrcode.make(qr_url)
         buf = BytesIO()

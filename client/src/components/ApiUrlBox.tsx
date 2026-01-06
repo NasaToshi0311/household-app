@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { getApiBaseUrl, setApiBaseUrl, setApiKey, getApiKey } from "../config/api";
+import { getApiBaseUrl, setApiBaseUrl, setApiKey, getApiKey, clearApiBaseUrl, clearApiKey } from "../config/api";
 import * as S from "../ui/styles";
 
 function HelpSection() {
@@ -85,6 +85,7 @@ type Props = {
   syncing: boolean;
   onSync: () => void;
   onBaseUrlChange?: (url: string) => void;
+  onConfiguredChange?: (isConfigured: boolean) => void;
 };
 
 export default function ApiUrlBox({
@@ -93,17 +94,96 @@ export default function ApiUrlBox({
   syncing,
   onSync,
   onBaseUrlChange,
+  onConfiguredChange,
 }: Props) {
   const [baseUrl, setBaseUrl] = useState("");
+  const [syncUrlError, setSyncUrlError] = useState<string | null>(null);
+  const [syncUrlParamState, setSyncUrlParamState] = useState<string | null>(null);
   const onBaseUrlChangeRef = useRef(onBaseUrlChange);
+  const onConfiguredChangeRef = useRef(onConfiguredChange);
   
   // 最新のコールバックを保持
   useEffect(() => {
     onBaseUrlChangeRef.current = onBaseUrlChange;
   }, [onBaseUrlChange]);
+  
+  useEffect(() => {
+    onConfiguredChangeRef.current = onConfiguredChange;
+  }, [onConfiguredChange]);
+  
+  // 設定状態をチェックして通知する関数
+  function checkAndNotifyConfigured() {
+    const apiUrl = getApiBaseUrl().trim();
+    const apiKey = getApiKey().trim();
+    const isConfigured = !!apiUrl && !!apiKey;
+    onConfiguredChangeRef.current?.(isConfigured);
+  }
+  
+  // URLパラメータを削除する関数
+  function removeUrlParams(paramsToRemove: string[]) {
+    const newUrl = new URL(window.location.href);
+    paramsToRemove.forEach(param => {
+      newUrl.searchParams.delete(param);
+    });
+    window.history.replaceState(null, "", newUrl.toString());
+  }
+
+  // sync_url から base_url と api_key を取得する関数
+  async function fetchSyncUrl(syncUrl: string) {
+    try {
+      const response = await fetch(syncUrl, { cache: "no-store" });
+      if (response.ok) {
+        const data = await response.json();
+        // base_url の末尾の / を削除して正規化
+        const normalized = data.base_url ? String(data.base_url).replace(/\/+$/, "") : "";
+        const apiKey = data.api_key ? String(data.api_key) : "";
+        
+        if (normalized) {
+          setBaseUrl(normalized);
+          setApiBaseUrl(normalized);
+          onBaseUrlChangeRef.current?.(normalized);
+        }
+        if (apiKey) {
+          setApiKey(apiKey);
+        }
+        
+        // 設定完了を通知（取得したその場で直接呼ぶ）
+        const ok = !!normalized && !!apiKey;
+        onConfiguredChangeRef.current?.(ok);
+        
+        // URLから sync_url を削除
+        removeUrlParams(["sync_url"]);
+        // state も null にする
+        setSyncUrlParamState(null);
+        // エラーをクリア
+        setSyncUrlError(null);
+      } else {
+        // fetch失敗時は警告表示
+        setSyncUrlError("PCと同じWi-Fiネットワークに接続されているか確認してください");
+        // sync_url は URL に残す（リロードで再試行できるように）
+        console.error("Failed to fetch sync URL:", response.status);
+      }
+    } catch (e) {
+      // fetch失敗時は警告表示
+      setSyncUrlError("PCと同じWi-Fiネットワークに接続されているか確認してください");
+      // sync_url は URL に残す（リロードで再試行できるように）
+      console.error("Error fetching sync URL:", e);
+    }
+  }
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+
+    // sync_url パラメータを最優先で処理（新しい方式）
+    const raw = params.get("sync_url");
+    const syncUrlParam = raw ? decodeURIComponent(raw) : null;
+    if (syncUrlParam) {
+      // state に保存
+      setSyncUrlParamState(syncUrlParam);
+      // fetch を実行
+      fetchSyncUrl(syncUrlParam);
+      return; // sync_url が処理された場合は早期リターン（from=qr / qr_data の分岐には入らない）
+    }
 
     if (params.get("from") === "qr") {
       // QRコードから読み取ったデータを処理
@@ -126,8 +206,14 @@ export default function ApiUrlBox({
       if (apiKeyParam) {
         setApiKey(apiKeyParam);
       }
+      
+      // URLパラメータを削除（APIキー漏れ防止）
+      removeUrlParams(["from", "base_url", "api_key"]);
+      
+      // 設定完了を通知（同期的に呼ぶ）
+      checkAndNotifyConfigured();
     } else {
-      // URLパラメータからJSONデータを取得（QRコード読み取り時）
+      // URLパラメータからJSONデータを取得（QRコード読み取り時、旧形式）
       // QRコードにJSONが含まれている場合、それをURLパラメータとして渡す
       const qrDataParam = params.get("qr_data");
       if (qrDataParam) {
@@ -142,9 +228,10 @@ export default function ApiUrlBox({
             setApiKey(qrData.api_key);
           }
           // パラメータをクリア
-          const newUrl = new URL(window.location.href);
-          newUrl.searchParams.delete("qr_data");
-          window.history.replaceState(null, "", newUrl.toString());
+          removeUrlParams(["qr_data"]);
+          
+          // 設定完了を通知（同期的に呼ぶ）
+          checkAndNotifyConfigured();
         } catch (e) {
           // JSON解析に失敗した場合は無視
         }
@@ -155,6 +242,9 @@ export default function ApiUrlBox({
         setBaseUrl(saved);
         onBaseUrlChangeRef.current?.(saved);
       }
+      
+      // 初期状態を通知
+      checkAndNotifyConfigured();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // マウント時のみ実行
@@ -180,6 +270,8 @@ export default function ApiUrlBox({
             setBaseUrl(v);
             setApiBaseUrl(v);
             onBaseUrlChange?.(v);
+            // 設定状態をチェック（APIキーが既に設定されている場合に備える）
+            checkAndNotifyConfigured();
           }}
           style={S.input}
         />
@@ -215,9 +307,39 @@ export default function ApiUrlBox({
               : "同期する"}
       </button>
 
+      {/* 設定リセットボタン */}
+      {(() => {
+        const apiUrl = getApiBaseUrl().trim();
+        const apiKey = getApiKey().trim();
+        if (apiUrl || apiKey) {
+          return (
+            <button
+              onClick={() => {
+                clearApiBaseUrl();
+                clearApiKey();
+                setBaseUrl("");
+                onBaseUrlChangeRef.current?.("");
+                onConfiguredChangeRef.current?.(false);
+              }}
+              style={{
+                ...S.btn,
+                width: "100%",
+                marginTop: 12,
+                background: "#fee2e2",
+                border: "1px solid #fca5a5",
+                color: "#991b1b",
+              }}
+            >
+              🔄 設定をリセット
+            </button>
+          );
+        }
+        return null;
+      })()}
+
       {/* APIキー状態表示 */}
       {(() => {
-        const apiKey = getApiKey();
+        const apiKey = getApiKey().trim();
         if (!apiKey) {
           return (
             <div style={{ 
@@ -241,6 +363,34 @@ export default function ApiUrlBox({
           </div>
         );
       })()}
+
+      {/* sync_url エラー表示 */}
+      {syncUrlError && (
+        <div style={{ 
+          ...S.warningBox, 
+          marginTop: 12,
+          background: "#fee2e2",
+          border: "2px solid #f87171",
+          color: "#991b1b",
+        }}>
+          <div style={{ marginBottom: syncUrlParamState ? 8 : 0 }}>
+            ⚠ {syncUrlError}
+          </div>
+          {syncUrlParamState && (
+            <button
+              onClick={() => fetchSyncUrl(syncUrlParamState)}
+              style={{
+                ...S.btnPrimary,
+                width: "100%",
+                marginTop: 8,
+                fontSize: 13,
+              }}
+            >
+              🔄 再試行
+            </button>
+          )}
+        </div>
+      )}
 
       {/* 状態表示 */}
       {!online && (

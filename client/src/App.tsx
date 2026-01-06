@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { upsertExpense, getPendingExpenses, hardDeleteExpense, markSynced } from "./db";
 import type { Expense, ExpenseInput } from "./db";
 import { useOnline } from "./hooks/useOnline";
-import { getApiBaseUrl } from "./config/api";
+import { getApiBaseUrl, getApiKey } from "./config/api";
 import SummaryPage from "./pages/SummaryPage";
 import { syncExpenses } from "./api/expenses";
 import ApiUrlBox from "./components/ApiUrlBox";
@@ -22,6 +22,10 @@ export default function App() {
     message: string;
     onConfirm: () => void;
   } | null>(null);
+  
+  const [configured, setConfigured] = useState(() => {
+    return !!getApiBaseUrl().trim() && !!getApiKey().trim();
+  });
 
   const refresh = useCallback(async () => {
     setItems(await getPendingExpenses());
@@ -99,6 +103,25 @@ export default function App() {
     </button>
   );
 
+  if (!configured) {
+    return (
+      <div style={S.page}>
+        <h1 style={S.h1}>家計簿（スマホ）</h1>
+        <div style={S.card}>
+          <ApiUrlBox
+            itemsCount={items.length}
+            online={online}
+            syncing={syncing}
+            onSync={sync}
+            onConfiguredChange={(isConfigured) => {
+              setConfigured(isConfigured);
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={S.page}>
       <h1 style={S.h1}>家計簿（スマホ）</h1>
@@ -108,6 +131,9 @@ export default function App() {
           online={online}
           syncing={syncing}
           onSync={sync}
+          onConfiguredChange={(isConfigured) => {
+            setConfigured(isConfigured);
+          }}
         />
       </div>
 
