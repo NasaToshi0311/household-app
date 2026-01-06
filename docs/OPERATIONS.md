@@ -214,8 +214,14 @@ docker compose exec db psql -U household -d household -c "SELECT pg_size_pretty(
    - ファイアウォールの設定を確認
 
 3. APIキーが正しいか確認
-   - サーバー側の `API_KEY` 環境変数
-   - クライアント側のAPIキー設定
+   - サーバー側の `API_KEY` 環境変数（`docker-compose.yml`）
+   - クライアント側のAPIキー設定（localStorage）
+   - QRコードを再読み取りして設定を更新
+
+4. 認証エラー（HTTP 401）の場合
+   - サーバー側とクライアント側のAPIキーが一致しているか確認
+   - `http://[PCのIP]:8000/sync/url` にアクセスしてAPIキーを確認
+   - クライアント側のlocalStorageをクリアしてQRコードを再読み取り
 
 ### データが表示されない
 

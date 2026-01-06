@@ -211,12 +211,17 @@ SummaryPage コンポーネント
 - `GET /sync/url`
   - 同期用URL取得（QRコード用）
   - レスポンス: `{ base_url: string, api_key: string }`
+  - 認証不要（PUBLIC_PATHS）
 
 - `GET /sync/qr.png`
   - QRコード画像生成
+  - QRコードには `https://household-app.vercel.app?qr_data={JSON}` 形式のURLが含まれる
+  - JSONデータには `base_url` と `api_key` が含まれる
+  - 認証不要（PUBLIC_PATHS）
 
 - `GET /sync/page`
   - QRコード表示用HTMLページ
+  - 認証不要（PUBLIC_PATHS）
 
 #### 集計関連
 
@@ -285,34 +290,55 @@ SummaryPage コンポーネント
 - 同期失敗時もデータは保持され、次回再試行
 - 同期成功したデータは`status="synced"`に更新されるが、データは保持される（ローカル集計に使用可能）
 
+### QRコードによる設定
+
+1. **QRコード生成**（サーバー側）
+   - `GET /sync/qr.png` でQRコード画像を生成
+   - QRコードには `https://household-app.vercel.app?qr_data={JSON}` 形式のURLが含まれる
+   - JSONデータには `base_url`（API URL）と `api_key`（APIキー）が含まれる
+
+2. **QRコード読み取り**（クライアント側）
+   - スマホのカメラでQRコードを読み取る
+   - URLパラメータ `qr_data` からJSONデータを取得
+   - `base_url` と `api_key` をlocalStorageに保存
+   - 自動的に同期設定が完了
+
 ## セキュリティ考慮事項
 
 ### 現在の実装
 
-1. **CORS設定**
-   - 環境変数`CORS_ORIGINS`で許可オリジンを指定
-   - デフォルトは開発環境用のローカルホスト
+1. **APIキー認証**
+   - すべてのAPIリクエストに`X-API-Key`ヘッダーが必要
+   - 環境変数`API_KEY`で設定（デフォルト: `household-app-secret-key-2024`）
+   - 認証不要なパス: `/health`, `/docs`, `/openapi.json`, `/sync/page`, `/sync/qr.png`, `/sync/url`, `/app`, `/favicon.ico`
+   - OPTIONSリクエスト（CORSプリフライト）は認証不要
+   - 認証失敗時はHTTP 401エラーを返す
 
-2. **DoS対策**
+2. **CORS設定**
+   - 環境変数`CORS_ORIGINS`で許可オリジンを指定
+   - デフォルトは開発環境用のローカルホスト + 本番環境URL
+   - `X-API-Key`ヘッダーを許可
+
+3. **DoS対策**
    - 同期リクエストの最大件数制限（1000件）
 
-3. **データバリデーション**
+4. **データバリデーション**
    - Pydanticスキーマで厳密な型チェック
    - 金額範囲: 0〜10億円
    - 文字列長制限
 
 ### 改善の余地
 
-1. **認証・認可**
-   - 現在は認証なし（同一ネットワーク内での使用を想定）
-   - 本番環境では認証機構の追加を推奨
-
-2. **HTTPS**
+1. **HTTPS**
    - 現在はHTTP（ローカルネットワーク想定）
    - 外部公開時はHTTPS必須
 
-3. **レート制限**
+2. **レート制限**
    - API呼び出し頻度の制限を検討
+
+3. **APIキーの強化**
+   - より強固なキー生成方法の検討
+   - キーの定期ローテーション機能
 
 ## パフォーマンス最適化
 

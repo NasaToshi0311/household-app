@@ -53,10 +53,19 @@ IPアドレスを確認（例: `192.168.1.100`）
 2. 表示されたQRコードをスマホのカメラで読み取る
 3. 自動的にAPI URLとAPIキーが設定されます
 
+**QRコードの仕組み**:
+- QRコードには、API URL（`base_url`）とAPIキー（`api_key`）がJSON形式で含まれています
+- スマホでQRコードを読み取ると、アプリが自動的にこれらの値を設定します
+- QRコードは `https://household-app.vercel.app?qr_data={JSONデータ}` 形式のURLを含んでいます
+
 #### 方法2: 手動設定
 
 1. 同期先URLに `http://[PCのIP]:8000` を入力
-2. APIキーに `household-app-secret-key-2024` を入力（デフォルト値）
+2. APIキーはQRコードから取得するか、サーバー側の `API_KEY` 環境変数を確認してください（デフォルト: `household-app-secret-key-2024`）
+
+**APIキーの確認方法**:
+- サーバー側の `docker-compose.yml` の `API_KEY` 環境変数を確認
+- または、`http://[PCのIP]:8000/sync/url` にアクセスしてJSONレスポンスを確認
 
 ## 環境変数設定
 
@@ -71,6 +80,8 @@ environment:
   API_KEY: "your-secret-key-here"
 ```
 
+**注意**: APIキーを変更した場合は、クライアント側でも同じキーを設定する必要があります。QRコードを再読み取りするか、手動で設定してください。
+
 ### CORS_ORIGINS
 
 CORS許可オリジン（カンマ区切り）
@@ -82,11 +93,22 @@ environment:
 
 ### HOST_IP
 
-PCのIPアドレス（QRコード生成時に使用）
+PCのIPアドレス（QRコード生成時に使用、**推奨**）
 
 ```yaml
 environment:
   HOST_IP: "192.168.1.100"
+```
+
+**重要**: Dockerコンテナ内では自動取得したIPアドレスが内部IP（172.17.x.xなど）になる可能性があります。`HOST_IP`を明示的に設定することを強く推奨します。
+
+### DATABASE_URL
+
+データベース接続URL（通常は変更不要）
+
+```yaml
+environment:
+  DATABASE_URL: "postgresql+psycopg://household:household@db:5432/household"
 ```
 
 環境変数を変更した場合は、コンテナを再起動してください：

@@ -98,7 +98,10 @@ client/
 ### QRコード設定
 
 - QRコードを読み取ってAPI URLとAPIキーを自動設定
-- 手動入力も可能
+  - QRコードは `http://[PCのIP]:8000/sync/page` で表示
+  - QRコードには `base_url` と `api_key` がJSON形式で含まれる
+  - 読み取ると自動的にlocalStorageに保存される
+- 手動入力も可能（API URLのみ、APIキーはQRコードから取得推奨）
 
 ## IndexedDB構造
 
@@ -155,3 +158,7 @@ docker compose restart api
 - PWAとしてホーム画面に追加すると、オフラインでも入力可能です
 - 同期はオンライン時のみ実行可能です
 - API URLとAPIキーはローカルストレージ（localStorage）に保存されます
+  - API URL: `household_api_base_url` キー
+  - APIキー: `household_api_key` キー
+- 同期リクエストには `X-API-Key` ヘッダーが自動的に付与されます
+- タイムアウトは15秒に設定されています（テザリング環境での遅延を考慮）
