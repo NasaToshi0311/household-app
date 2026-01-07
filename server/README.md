@@ -277,11 +277,17 @@ CREATE INDEX idx_expenses_date ON expenses(date);
 
 - すべてのAPIリクエストに`X-API-Key`ヘッダーが必要
 - 認証不要なパスは`app/middleware/auth.py`の`PUBLIC_PATHS`で定義
+  - `/health`, `/docs`, `/openapi.json`, `/sync/page`, `/sync/qr.png`, `/sync/url`, `/app`で始まるパス, `/favicon.ico`
+  - OPTIONSリクエスト（CORSプリフライト）も認証不要
 
 ### CORS設定
 
-- 環境変数`CORS_ORIGINS`で許可オリジンを指定
-- デフォルト値は`app/main.py`で定義
+- 環境変数`CORS_ORIGINS`で許可オリジンを指定（カンマ区切り）
+- デフォルト値（`CORS_ORIGINS`未設定時）:
+  - `https://household-app.vercel.app`
+  - `http://10.76.108.202:5173`
+  - `http://localhost:5173`
+  - `http://127.0.0.1:5173`
 
 ## トラブルシューティング
 

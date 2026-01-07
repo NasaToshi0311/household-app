@@ -25,7 +25,7 @@ X-API-Key: household-app-secret-key-2024
 - `GET /sync/page`
 - `GET /sync/qr.png`
 - `GET /sync/url`
-- `GET /app/*`
+- `GET /app` で始まるパス（フロントエンド配信用）
 - `GET /favicon.ico`
 - `OPTIONS /*` (CORSプリフライト)
 
@@ -158,7 +158,7 @@ GET /sync/qr.png
 - Content-Type: `image/png`
 - QRコード画像（PNG形式）
 
-QRコードには、`https://household-app.vercel.app?qr_data={JSON}`形式のURLが含まれます。JSONデータには`base_url`と`api_key`が含まれます。
+QRコードには、`https://household-app.vercel.app?sync_url={URL}`形式のURLが含まれます。`sync_url`パラメータには`http://[PCのIP]:8000/sync/url`が含まれ、クライアント側でこのURLにアクセスして`base_url`と`api_key`を取得します。
 
 **curl例**
 

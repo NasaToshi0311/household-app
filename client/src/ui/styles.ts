@@ -100,15 +100,6 @@ export const warningBox: React.CSSProperties = {
   fontWeight: 500,
 };
 
-export const errorBox: React.CSSProperties = {
-  background: "linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)",
-  border: "2px solid #ef4444",
-  padding: 12,
-  borderRadius: 12,
-  color: "#991b1b",
-  fontWeight: 500,
-};
-
 export const successBox: React.CSSProperties = {
   background: "linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)",
   border: "2px solid #10b981",

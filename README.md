@@ -72,7 +72,8 @@
 - PCとスマホは同一ネットワーク（テザリング可）で接続する必要があります
 - 初回はAPIのURLとAPIキーを設定してください（QRコード推奨）
   - QRコードは `http://[PCのIP]:8000/sync/page` で表示できます
-  - QRコードにはAPI URLとAPIキーの両方が含まれています
+  - QRコードを読み取ると、自動的にAPI URLとAPIキーが設定されます
+  - QRコードには `sync_url` パラメータが含まれており、そこからAPI URLとAPIキーを取得します
 - APIキー認証により、同一ネットワーク内でも不正アクセスを防止しています
 - DBデータはローカル環境のため、定期的にバックアップを取ることを推奨します（`backup_db.ps1` を使用）
 - PWAとしてホーム画面に追加すると、オフラインでも入力可能です
@@ -88,7 +89,8 @@
   - デフォルトのAPIキー: `household-app-secret-key-2024`
   - 環境変数 `API_KEY` で変更可能
   - 認証不要なパス: `/health`, `/docs`, `/sync/page`, `/sync/qr.png`, `/sync/url`, `/app`
-- **CORS設定**: 許可されたオリジンのみアクセス可能（環境変数 `CORS_ORIGINS` で設定）
+- **CORS設定**: 許可されたオリジンのみアクセス可能（環境変数 `CORS_ORIGINS` で設定、カンマ区切り）
+  - デフォルト値（未設定時）: `https://household-app.vercel.app`, `http://localhost:5173` など
 
 詳細は `docs/architecture.md` を参照してください。
 

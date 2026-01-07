@@ -294,12 +294,13 @@ SummaryPage コンポーネント
 
 1. **QRコード生成**（サーバー側）
    - `GET /sync/qr.png` でQRコード画像を生成
-   - QRコードには `https://household-app.vercel.app?qr_data={JSON}` 形式のURLが含まれる
-   - JSONデータには `base_url`（API URL）と `api_key`（APIキー）が含まれる
+   - QRコードには `https://household-app.vercel.app?sync_url={URL}` 形式のURLが含まれる
+   - `sync_url` パラメータには `http://[PCのIP]:8000/sync/url` が含まれる
 
 2. **QRコード読み取り**（クライアント側）
    - スマホのカメラでQRコードを読み取る
-   - URLパラメータ `qr_data` からJSONデータを取得
+   - URLパラメータ `sync_url` から `/sync/url` エンドポイントのURLを取得
+   - そのURLにアクセスして `base_url` と `api_key` を取得
    - `base_url` と `api_key` をlocalStorageに保存
    - 自動的に同期設定が完了
 
@@ -310,13 +311,17 @@ SummaryPage コンポーネント
 1. **APIキー認証**
    - すべてのAPIリクエストに`X-API-Key`ヘッダーが必要
    - 環境変数`API_KEY`で設定（デフォルト: `household-app-secret-key-2024`）
-   - 認証不要なパス: `/health`, `/docs`, `/openapi.json`, `/sync/page`, `/sync/qr.png`, `/sync/url`, `/app`, `/favicon.ico`
+   - 認証不要なパス: `/health`, `/docs`, `/openapi.json`, `/sync/page`, `/sync/qr.png`, `/sync/url`, `/app`で始まるパス, `/favicon.ico`
    - OPTIONSリクエスト（CORSプリフライト）は認証不要
    - 認証失敗時はHTTP 401エラーを返す
 
 2. **CORS設定**
-   - 環境変数`CORS_ORIGINS`で許可オリジンを指定
-   - デフォルトは開発環境用のローカルホスト + 本番環境URL
+   - 環境変数`CORS_ORIGINS`で許可オリジンを指定（カンマ区切り）
+   - デフォルト値（`CORS_ORIGINS`未設定時）:
+     - `https://household-app.vercel.app`
+     - `http://10.76.108.202:5173`
+     - `http://localhost:5173`
+     - `http://127.0.0.1:5173`
    - `X-API-Key`ヘッダーを許可
 
 3. **DoS対策**

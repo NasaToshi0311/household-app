@@ -182,70 +182,18 @@ export default function ApiUrlBox({
       setSyncUrlParamState(syncUrlParam);
       // fetch を実行
       fetchSyncUrl(syncUrlParam);
-      return; // sync_url が処理された場合は早期リターン（from=qr / qr_data の分岐には入らない）
+      return; // sync_url が処理された場合は早期リターン
     }
 
-    if (params.get("from") === "qr") {
-      // QRコードから読み取ったデータを処理
-      // URLパラメータからbase_urlとapi_keyを取得
-      const baseUrlParam = params.get("base_url");
-      const apiKeyParam = params.get("api_key");
-      
-      if (baseUrlParam) {
-        setBaseUrl(baseUrlParam);
-        setApiBaseUrl(baseUrlParam);
-        onBaseUrlChangeRef.current?.(baseUrlParam);
-      } else {
-        // 旧形式のフォールバック（URLのみ）
-        const api = window.location.origin.replace(/:\d+$/, ":8000");
-        setBaseUrl(api);
-        setApiBaseUrl(api);
-        onBaseUrlChangeRef.current?.(api);
-      }
-      
-      if (apiKeyParam) {
-        setApiKey(apiKeyParam);
-      }
-      
-      // URLパラメータを削除（APIキー漏れ防止）
-      removeUrlParams(["from", "base_url", "api_key"]);
-      
-      // 設定完了を通知（同期的に呼ぶ）
-      checkAndNotifyConfigured();
-    } else {
-      // URLパラメータからJSONデータを取得（QRコード読み取り時、旧形式）
-      // QRコードにJSONが含まれている場合、それをURLパラメータとして渡す
-      const qrDataParam = params.get("qr_data");
-      if (qrDataParam) {
-        try {
-          const qrData = JSON.parse(decodeURIComponent(qrDataParam));
-          if (qrData.base_url) {
-            setBaseUrl(qrData.base_url);
-            setApiBaseUrl(qrData.base_url);
-            onBaseUrlChangeRef.current?.(qrData.base_url);
-          }
-          if (qrData.api_key) {
-            setApiKey(qrData.api_key);
-          }
-          // パラメータをクリア
-          removeUrlParams(["qr_data"]);
-          
-          // 設定完了を通知（同期的に呼ぶ）
-          checkAndNotifyConfigured();
-        } catch (e) {
-          // JSON解析に失敗した場合は無視
-        }
-      }
-      
-      const saved = getApiBaseUrl();
-      if (saved) {
-        setBaseUrl(saved);
-        onBaseUrlChangeRef.current?.(saved);
-      }
-      
-      // 初期状態を通知
-      checkAndNotifyConfigured();
+    // 既存の設定を読み込む
+    const saved = getApiBaseUrl();
+    if (saved) {
+      setBaseUrl(saved);
+      onBaseUrlChangeRef.current?.(saved);
     }
+    
+    // 初期状態を通知
+    checkAndNotifyConfigured();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // マウント時のみ実行
 

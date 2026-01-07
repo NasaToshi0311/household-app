@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.db import get_db  # あなたの get_db に合わせる
+from app.db import get_db
 
 router = APIRouter(prefix="/summary", tags=["summary"])
 
