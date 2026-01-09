@@ -284,6 +284,9 @@ X-API-Key: your-api-key
 ]
 ```
 
+- `paid_by` (string | null): 支払者（"me" または "her"、または null）
+- `total` (integer): 合計金額
+
 **curl例**
 
 ```bash
@@ -524,9 +527,11 @@ curl http://localhost:8000/health
 
 ```json
 {
-  "detail": "Invalid API key. Expected length: 30, Received length: 0"
+  "detail": "Invalid API key. Expected length: {API_KEYの長さ}, Received length: {受信したAPIキーの長さ}"
 }
 ```
+
+**注意**: `Expected length`の値は、サーバー側の`API_KEY`環境変数の長さによって異なります（デフォルト: 30文字）。
 
 **対処法**: `X-API-Key`ヘッダーを正しく設定してください。
 

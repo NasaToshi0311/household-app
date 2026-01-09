@@ -29,7 +29,7 @@ Household Appのデータベース構造の詳細です。
 | `note` | VARCHAR(200) | NULL | メモ（最大200文字、任意） |
 | `paid_by` | VARCHAR(8) | NOT NULL | 支払者（"me" または "her"） |
 | `created_at` | TIMESTAMP WITH TIME ZONE | NOT NULL, DEFAULT NOW() | 作成日時（UTC） |
-| `updated_at` | TIMESTAMP WITH TIME ZONE | NOT NULL, DEFAULT NOW(), ON UPDATE NOW() | 更新日時（UTC） |
+| `updated_at` | TIMESTAMP WITH TIME ZONE | NOT NULL, DEFAULT NOW() | 更新日時（UTC、SQLAlchemyのonupdateで自動更新） |
 | `deleted_at` | TIMESTAMP WITH TIME ZONE | NULL | 削除日時（論理削除、UTC） |
 
 #### インデックス
@@ -63,6 +63,8 @@ CREATE TABLE expenses (
 
 CREATE UNIQUE INDEX idx_expenses_client_uuid ON expenses(client_uuid);
 ```
+
+**注意**: `updated_at`の自動更新は、SQLAlchemyの`onupdate=func.now()`によりアプリケーションレベルで実装されています。PostgreSQLの標準SQLでは`ON UPDATE`句はサポートされていません。
 
 ## データモデル
 
