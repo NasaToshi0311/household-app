@@ -72,8 +72,8 @@ export default function App() {
         borderTop: tab === key ? "3px solid #16a34a" : "3px solid transparent",
         borderLeft: tab === key ? "2px solid #e5e7eb" : "none",
         borderRight: tab === key ? "2px solid #e5e7eb" : "none",
-        background: tab === key ? "#ffffff" : "#ffffff",
-        color: tab === key ? "#1f2937" : "#6b7280",
+        background: tab === key ? "#f0fdf4" : "#f9fafb",
+        color: tab === key ? "#16a34a" : "#6b7280",
         fontWeight: tab === key ? 700 : 600,
         fontSize: 16,
         cursor: "pointer",
@@ -81,17 +81,17 @@ export default function App() {
         position: "relative",
         zIndex: tab === key ? 10 : 1,
         transform: tab === key ? "translateY(-2px)" : "translateY(0)",
-        boxShadow: tab === key ? "0 -2px 8px rgba(0,0,0,0.05)" : "none",
+        boxShadow: tab === key ? "0 -2px 8px rgba(22, 163, 74, 0.1)" : "none",
       }}
       onMouseEnter={(e) => {
         if (tab !== key) {
-          e.currentTarget.style.background = "#f9fafb";
-          e.currentTarget.style.color = "#374151";
+          e.currentTarget.style.background = "#f3f4f6";
+          e.currentTarget.style.color = "#4b5563";
         }
       }}
       onMouseLeave={(e) => {
         if (tab !== key) {
-          e.currentTarget.style.background = "#ffffff";
+          e.currentTarget.style.background = "#f9fafb";
           e.currentTarget.style.color = "#6b7280";
         }
       }}

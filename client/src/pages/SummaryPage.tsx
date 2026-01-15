@@ -288,18 +288,24 @@ export default function SummaryPage() {
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
+                    alignItems: "center",
                     gap: 8,
-                    padding: "10px 12px",
+                    padding: "12px 14px",
                     borderRadius: 10,
                     background: "#f9fafb",
                     border: "1px solid #e5e7eb",
                   }}
                 >
-                  <div style={{ color: "#1f2937", fontWeight: 600 }}>{c.category}</div>
+                  <div style={{ color: "#1f2937", fontWeight: 600, fontSize: 15 }}>{c.category}</div>
                   <div
                     style={{
-                      fontWeight: 700,
-                      color: "#1f2937",
+                      fontWeight: 800,
+                      fontSize: 16,
+                      color: "#16a34a",
+                      padding: "4px 10px",
+                      background: "#f0fdf4",
+                      borderRadius: 8,
+                      border: "1px solid #bbf7d0",
                     }}
                   >
                     ¥{c.total.toLocaleString("ja-JP")}
@@ -332,18 +338,24 @@ export default function SummaryPage() {
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
+                    alignItems: "center",
                     gap: 8,
-                    padding: "10px 12px",
+                    padding: "12px 14px",
                     borderRadius: 10,
                     background: "#f9fafb",
                     border: "1px solid #e5e7eb",
                   }}
                 >
-                  <div style={{ color: "#1f2937", fontWeight: 600 }}>{payerName}</div>
+                  <div style={{ color: "#1f2937", fontWeight: 600, fontSize: 15 }}>{payerName}</div>
                   <div
                     style={{
-                      fontWeight: 700,
-                      color: "#1f2937",
+                      fontWeight: 800,
+                      fontSize: 16,
+                      color: "#16a34a",
+                      padding: "4px 10px",
+                      background: "#f0fdf4",
+                      borderRadius: 8,
+                      border: "1px solid #bbf7d0",
                     }}
                   >
                     ¥{p.total.toLocaleString("ja-JP")}
