@@ -8,6 +8,7 @@ from app.routers.stats import router as stats_router
 from app.routers.sync_qr import router as sync_qr_router
 from app.routers.summary import router as summary_router
 from app.middleware.auth import APIKeyMiddleware
+from app.middleware.lan_only import LanOnlyMiddleware
 from fastapi.staticfiles import StaticFiles
 
 app = FastAPI() # FastAPIのインスタンスを作成
@@ -24,6 +25,16 @@ else:
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]
+
+# LAN制限（/sync 配下だけ許可）
+ALLOW_SUBNETS = os.environ.get("ALLOW_SUBNETS", "")  # 例: "192.168.1.0/24"
+
+if ALLOW_SUBNETS:
+    app.add_middleware(
+        LanOnlyMiddleware,
+        allow_subnets=ALLOW_SUBNETS,
+        protected_prefixes=("/sync",),
+    )
 
 app.add_middleware(
     CORSMiddleware,
