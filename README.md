@@ -74,6 +74,7 @@
   - QRコードは `http://[PCのIP]:8000/sync/page` で表示できます
   - QRコードを読み取ると、自動的にAPI URLとAPIキーが設定されます
   - QRコードには `sync_url` パラメータが含まれており、そこからAPI URLとAPIキーを取得します
+  - QRコードのURL形式: `https://household-app.vercel.app/sync-setup?sync_url={URL}`
 - APIキー認証により、同一ネットワーク内でも不正アクセスを防止しています
 - DBデータはローカル環境のため、定期的にバックアップを取ることを推奨します（`backup_db.ps1` を使用）
 - PWAとしてホーム画面に追加すると、オフラインでも入力可能です
@@ -82,15 +83,20 @@
   - `API_KEY`: APIキー（デフォルト: `household-app-secret-key-2024`）
   - `HOST_IP`: PCのIPアドレス（QRコード生成時に使用、推奨）
   - `CORS_ORIGINS`: CORS許可オリジン（カンマ区切り）
+  - `FRONTEND_URL`: フロントエンドのURL（QRコード生成時に使用、デフォルト: `https://household-app.vercel.app`）
+  - `ALLOW_SUBNETS`: LAN制限を有効にする場合の許可サブネット（カンマ区切り、例: `192.168.0.0/24,172.16.0.0/12`）
 
 ## セキュリティ
 
 - **APIキー認証**: すべてのAPIリクエストにAPIキーが必要です（`X-API-Key` ヘッダー）
   - デフォルトのAPIキー: `household-app-secret-key-2024`
   - 環境変数 `API_KEY` で変更可能
-  - 認証不要なパス: `/health`, `/docs`, `/sync/page`, `/sync/qr.png`, `/sync/url`, `/app`
+  - 認証不要なパス: `/health`, `/docs`, `/openapi.json`, `/sync/page`, `/sync/qr.png`, `/sync/url`, `/app`で始まるパス, `/favicon.ico`
 - **CORS設定**: 許可されたオリジンのみアクセス可能（環境変数 `CORS_ORIGINS` で設定、カンマ区切り）
   - デフォルト値（未設定時）: `https://household-app.vercel.app`, `http://localhost:5173` など
+- **LAN制限**: オプションで `/sync` 配下のエンドポイントにLAN制限を設定可能（環境変数 `ALLOW_SUBNETS` で設定）
+  - 設定例: `ALLOW_SUBNETS=192.168.0.0/24,172.16.0.0/12`
+  - 未設定の場合はLAN制限は無効
 
 詳細は `docs/architecture.md` を参照してください。
 

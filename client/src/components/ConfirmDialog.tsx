@@ -48,7 +48,7 @@ export default function ConfirmDialog({ message, onConfirm, onCancel }: Props) {
         <div
           style={{
             fontSize: 15,
-            color: "#374151",
+            color: "#1f2937",
             lineHeight: 1.6,
             marginBottom: 24,
             whiteSpace: "pre-line",
@@ -62,8 +62,8 @@ export default function ConfirmDialog({ message, onConfirm, onCancel }: Props) {
             style={{
               ...S.btn,
               padding: "10px 20px",
-              background: "#f3f4f6",
-              color: "#374151",
+              background: "#ffffff",
+              color: "#1f2937",
             }}
           >
             キャンセル

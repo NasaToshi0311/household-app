@@ -63,8 +63,9 @@ export default function ExpenseForm({ onAdd }: Props) {
           marginBottom: 12, 
           padding: 14, 
           borderRadius: 12, 
-          border: "2px solid #e0e0e0",
+          border: "2px solid #e5e7eb",
           fontSize: 16,
+          color: "#1f2937",
           transition: "border-color 0.2s",
         }}
       />
@@ -77,9 +78,10 @@ export default function ExpenseForm({ onAdd }: Props) {
           marginBottom: 12, 
           padding: 14, 
           borderRadius: 12, 
-          border: "2px solid #e0e0e0",
+          border: "2px solid #e5e7eb",
           fontSize: 15,
           background: "#fff",
+          color: "#1f2937",
           cursor: "pointer",
           transition: "border-color 0.2s",
         }}
@@ -101,8 +103,9 @@ export default function ExpenseForm({ onAdd }: Props) {
           marginBottom: 12, 
           padding: 14, 
           borderRadius: 12, 
-          border: "2px solid #e0e0e0",
+          border: "2px solid #e5e7eb",
           fontSize: 15,
+          color: "#1f2937",
           transition: "border-color 0.2s",
         }}
       />
@@ -134,22 +137,24 @@ export default function ExpenseForm({ onAdd }: Props) {
           width: "100%", 
           padding: 14, 
           borderRadius: 12,
-          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-          color: "#fff",
-          border: "none",
+          background: "#16a34a",
+          color: "#ffffff",
+          border: "2px solid #16a34a",
           fontSize: 16,
           fontWeight: 700,
           cursor: "pointer",
-          boxShadow: "0 2px 8px rgba(102, 126, 234, 0.4)",
+          boxShadow: "0 2px 8px rgba(22, 163, 74, 0.3)",
           transition: "all 0.2s",
         }}
         onMouseOver={(e) => {
           e.currentTarget.style.transform = "translateY(-1px)";
-          e.currentTarget.style.boxShadow = "0 4px 12px rgba(102, 126, 234, 0.5)";
+          e.currentTarget.style.boxShadow = "0 4px 12px rgba(22, 163, 74, 0.4)";
+          e.currentTarget.style.background = "#15803d";
         }}
         onMouseOut={(e) => {
           e.currentTarget.style.transform = "translateY(0)";
-          e.currentTarget.style.boxShadow = "0 2px 8px rgba(102, 126, 234, 0.4)";
+          e.currentTarget.style.boxShadow = "0 2px 8px rgba(22, 163, 74, 0.3)";
+          e.currentTarget.style.background = "#16a34a";
         }}
       >
         追加

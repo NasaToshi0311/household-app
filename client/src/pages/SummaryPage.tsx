@@ -149,8 +149,8 @@ export default function SummaryPage() {
 
       <div
         style={{
-          background: "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)",
-          border: "2px solid #3b82f6",
+          background: "#eff6ff",
+          border: "2px solid #93c5fd",
           padding: 14,
           borderRadius: 12,
           marginBottom: 16,
@@ -175,7 +175,7 @@ export default function SummaryPage() {
         }}
       >
         <div style={{ display: "grid", gap: 6 }}>
-          <label style={{ fontSize: 14, color: "#374151", fontWeight: 600 }}>開始日</label>
+          <label style={{ fontSize: 14, color: "#1f2937", fontWeight: 600 }}>開始日</label>
           <input
             type="date"
             value={start}
@@ -184,14 +184,15 @@ export default function SummaryPage() {
               width: "100%",
               padding: 12,
               borderRadius: 12,
-              border: "2px solid #e0e0e0",
+              border: "2px solid #e5e7eb",
               fontSize: 15,
+              color: "#1f2937",
               transition: "border-color 0.2s",
             }}
           />
         </div>
         <div style={{ display: "grid", gap: 6 }}>
-          <label style={{ fontSize: 14, color: "#374151", fontWeight: 600 }}>終了日</label>
+          <label style={{ fontSize: 14, color: "#1f2937", fontWeight: 600 }}>終了日</label>
           <input
             type="date"
             value={end}
@@ -200,8 +201,9 @@ export default function SummaryPage() {
               width: "100%",
               padding: 12,
               borderRadius: 12,
-              border: "2px solid #e0e0e0",
+              border: "2px solid #e5e7eb",
               fontSize: 15,
+              color: "#1f2937",
               transition: "border-color 0.2s",
             }}
           />
@@ -222,12 +224,10 @@ export default function SummaryPage() {
             style={{
               ...btnStyle,
               fontWeight: 700,
-              background: loading
-                ? "#e5e7eb"
-                : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-              color: loading ? "#9ca3af" : "#fff",
-              border: loading ? "2px solid #d1d5db" : "2px solid #667eea",
-              boxShadow: loading ? "none" : "0 2px 8px rgba(102, 126, 234, 0.4)",
+              background: loading ? "#e5e7eb" : "#16a34a",
+              color: loading ? "#9ca3af" : "#ffffff",
+              border: loading ? "2px solid #d1d5db" : "2px solid #16a34a",
+              boxShadow: loading ? "none" : "0 2px 8px rgba(22, 163, 74, 0.3)",
             }}
             disabled={loading}
           >
@@ -239,7 +239,7 @@ export default function SummaryPage() {
       {error && (
         <div
           style={{
-            background: "linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)",
+            background: "#fee2e2",
             border: "2px solid #ef4444",
             padding: 14,
             borderRadius: 12,
@@ -261,10 +261,7 @@ export default function SummaryPage() {
             fontSize: 32,
             fontWeight: 800,
             marginTop: 8,
-            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
+            color: "#1f2937",
           }}
         >
           ¥{totalText}
@@ -284,9 +281,7 @@ export default function SummaryPage() {
           <div style={{ color: "#9ca3af", fontSize: 14, fontStyle: "italic" }}>データなし</div>
         ) : (
           <div style={{ display: "grid", gap: 8 }}>
-            {byCategory.slice(0, 10).map((c, idx) => {
-              const colors = ["#667eea", "#f5576c", "#4facfe", "#43e97b", "#fa709a"];
-              const color = colors[idx % colors.length];
+            {byCategory.slice(0, 10).map((c) => {
               return (
                 <div
                   key={c.category}
@@ -296,15 +291,15 @@ export default function SummaryPage() {
                     gap: 8,
                     padding: "10px 12px",
                     borderRadius: 10,
-                    background: "rgba(102, 126, 234, 0.05)",
-                    border: "1px solid rgba(102, 126, 234, 0.1)",
+                    background: "#f9fafb",
+                    border: "1px solid #e5e7eb",
                   }}
                 >
                   <div style={{ color: "#1f2937", fontWeight: 600 }}>{c.category}</div>
                   <div
                     style={{
                       fontWeight: 700,
-                      color: color,
+                      color: "#1f2937",
                     }}
                   >
                     ¥{c.total.toLocaleString("ja-JP")}
@@ -326,9 +321,7 @@ export default function SummaryPage() {
           <div style={{ color: "#9ca3af", fontSize: 14, fontStyle: "italic" }}>データなし</div>
         ) : (
           <div style={{ display: "grid", gap: 8 }}>
-            {byPayer.map((p, idx) => {
-              const colors = ["#667eea", "#f5576c", "#4facfe", "#43e97b", "#fa709a"];
-              const color = colors[idx % colors.length];
+            {byPayer.map((p) => {
               const payerName =
                 p.paid_by && (p.paid_by === "me" || p.paid_by === "her")
                   ? payerLabel[p.paid_by]
@@ -342,15 +335,15 @@ export default function SummaryPage() {
                     gap: 8,
                     padding: "10px 12px",
                     borderRadius: 10,
-                    background: "rgba(102, 126, 234, 0.05)",
-                    border: "1px solid rgba(102, 126, 234, 0.1)",
+                    background: "#f9fafb",
+                    border: "1px solid #e5e7eb",
                   }}
                 >
                   <div style={{ color: "#1f2937", fontWeight: 600 }}>{payerName}</div>
                   <div
                     style={{
                       fontWeight: 700,
-                      color: color,
+                      color: "#1f2937",
                     }}
                   >
                     ¥{p.total.toLocaleString("ja-JP")}
@@ -379,8 +372,8 @@ export default function SummaryPage() {
                   style={{
                     padding: 14,
                     borderRadius: 12,
-                    background: "linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%)",
-                    border: "2px solid #e5e7eb",
+                    background: "#ffffff",
+                    border: "1px solid #e5e7eb",
                     boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
                   }}
                 >
@@ -401,7 +394,7 @@ export default function SummaryPage() {
                         style={{
                           fontWeight: 800,
                           fontSize: 18,
-                          color: "#667eea",
+                          color: "#1f2937",
                         }}
                       >
                         ¥{e.amount.toLocaleString("ja-JP")}
@@ -448,21 +441,21 @@ export default function SummaryPage() {
 }
 
 const cardStyle: React.CSSProperties = {
-  border: "1px solid rgba(255,255,255,0.3)",
+  border: "1px solid #e5e7eb",
   borderRadius: 16,
   padding: 16,
   background: "#fff",
-  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
 };
 
 const btnStyle: React.CSSProperties = {
   padding: "10px 16px",
   borderRadius: 12,
-  border: "2px solid #e0e0e0",
-  background: "#f8f9fa",
+  border: "2px solid #e5e7eb",
+  background: "#ffffff",
   cursor: "pointer",
   fontSize: 14,
   fontWeight: 600,
-  color: "#374151",
+  color: "#1f2937",
   transition: "all 0.2s",
 };

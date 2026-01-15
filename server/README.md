@@ -38,7 +38,8 @@ server/
 │   ├── schemas/            # Pydanticスキーマ
 │   │   └── sync.py         # 同期リクエスト/レスポンススキーマ
 │   └── middleware/        # ミドルウェア
-│       └── auth.py         # APIキー認証ミドルウェア
+│       ├── auth.py         # APIキー認証ミドルウェア
+│       └── lan_only.py     # LAN制限ミドルウェア（オプション）
 ├── static/                 # 静的ファイル（フロントエンドのビルド結果）
 │   └── dist/
 ├── Dockerfile              # Dockerイメージ定義
@@ -88,6 +89,8 @@ export DATABASE_URL="postgresql+psycopg://household:household@localhost:5432/hou
 export API_KEY="household-app-secret-key-2024"
 export CORS_ORIGINS="http://localhost:5173"
 export HOST_IP="192.168.1.100"
+export FRONTEND_URL="https://household-app.vercel.app"  # QRコード生成時に使用（オプション）
+export ALLOW_SUBNETS="192.168.0.0/24,172.16.0.0/12"  # LAN制限（オプション）
 
 # サーバー起動
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -130,11 +133,19 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 - `SyncExpenseItem`: 同期用の支出アイテム
 - `SyncExpensesRequest`: 同期リクエスト全体
 
-### ミドルウェア (`app/middleware/auth.py`)
+### ミドルウェア
+
+#### APIキー認証 (`app/middleware/auth.py`)
 
 - APIキー認証の実装
 - `X-API-Key`ヘッダーの検証
 - 認証不要なパスの除外
+
+#### LAN制限 (`app/middleware/lan_only.py`)
+
+- `/sync`配下のエンドポイントにLAN制限を設定可能（オプション）
+- 環境変数`ALLOW_SUBNETS`で許可サブネットを指定
+- ループバックアドレスは自動的に許可される
 
 ## 新しいエンドポイントの追加方法
 
@@ -288,6 +299,14 @@ CREATE INDEX idx_expenses_date ON expenses(date);
   - `http://10.76.108.202:5173`
   - `http://localhost:5173`
   - `http://127.0.0.1:5173`
+
+### LAN制限（オプション）
+
+- 環境変数`ALLOW_SUBNETS`で`/sync`配下のエンドポイントにLAN制限を設定可能
+- 設定例: `ALLOW_SUBNETS=192.168.0.0/24,172.16.0.0/12`
+- 未設定の場合はLAN制限は無効
+- 実装は`app/middleware/lan_only.py`の`LanOnlyMiddleware`で提供
+- ループバックアドレス（127.0.0.1等）は開発用に自動的に許可される
 
 ## トラブルシューティング
 

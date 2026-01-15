@@ -55,10 +55,7 @@ export default function PendingList({ items, onDeleteOne }: Props) {
               <div style={{ 
                 fontWeight: 900, 
                 fontSize: 20,
-                background: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
+                color: "#92400e",
               }}>
                 ¥{i.amount.toLocaleString("ja-JP")}
               </div>

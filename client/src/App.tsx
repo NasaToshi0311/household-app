@@ -69,33 +69,30 @@ export default function App() {
         padding: "12px 20px",
         borderRadius: tab === key ? "12px 12px 0 0" : "12px 12px 0 0",
         border: "none",
-        borderTop: tab === key ? "3px solid #ffffff" : "3px solid transparent",
-        borderLeft: tab === key ? "2px solid rgba(255,255,255,0.3)" : "none",
-        borderRight: tab === key ? "2px solid rgba(255,255,255,0.3)" : "none",
-        background: tab === key 
-          ? "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" 
-          : "rgba(255,255,255,0.6)",
-        color: tab === key ? "#ffffff" : "#4b5563",
-        fontWeight: tab === key ? 800 : 600,
+        borderTop: tab === key ? "3px solid #16a34a" : "3px solid transparent",
+        borderLeft: tab === key ? "2px solid #e5e7eb" : "none",
+        borderRight: tab === key ? "2px solid #e5e7eb" : "none",
+        background: tab === key ? "#ffffff" : "#ffffff",
+        color: tab === key ? "#1f2937" : "#6b7280",
+        fontWeight: tab === key ? 700 : 600,
         fontSize: 16,
         cursor: "pointer",
         transition: "all 0.2s",
         position: "relative",
         zIndex: tab === key ? 10 : 1,
         transform: tab === key ? "translateY(-2px)" : "translateY(0)",
-        boxShadow: tab === key 
-          ? "0 -2px 8px rgba(102, 126, 234, 0.3), inset 0 1px 0 rgba(255,255,255,0.2)" 
-          : "none",
-        textShadow: tab === key ? "0 1px 2px rgba(0,0,0,0.2)" : "none",
+        boxShadow: tab === key ? "0 -2px 8px rgba(0,0,0,0.05)" : "none",
       }}
       onMouseEnter={(e) => {
         if (tab !== key) {
-          e.currentTarget.style.background = "rgba(255,255,255,0.8)";
+          e.currentTarget.style.background = "#f9fafb";
+          e.currentTarget.style.color = "#374151";
         }
       }}
       onMouseLeave={(e) => {
         if (tab !== key) {
-          e.currentTarget.style.background = "rgba(255,255,255,0.6)";
+          e.currentTarget.style.background = "#ffffff";
+          e.currentTarget.style.color = "#6b7280";
         }
       }}
     >
@@ -141,12 +138,12 @@ export default function App() {
         <div style={{
           display: "flex",
           gap: 0,
-          background: "rgba(255,255,255,0.2)",
+          background: "#ffffff",
           borderRadius: "14px 14px 0 0",
           padding: "4px 4px 0 4px",
-          borderTop: "2px solid rgba(255,255,255,0.3)",
-          borderLeft: "2px solid rgba(255,255,255,0.3)",
-          borderRight: "2px solid rgba(255,255,255,0.3)",
+          borderTop: "2px solid #e5e7eb",
+          borderLeft: "2px solid #e5e7eb",
+          borderRight: "2px solid #e5e7eb",
         }}>
           {tabBtn("input", "入力")}
           {tabBtn("summary", "集計")}
@@ -157,10 +154,10 @@ export default function App() {
         marginTop: 0,
         background: "#ffffff",
         borderRadius: "0 0 16px 16px",
-        border: "2px solid rgba(255,255,255,0.3)",
+        border: "2px solid #e5e7eb",
         borderTop: "none",
         padding: "16px",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
         minHeight: "400px",
       }}>
         {tab === "summary" ? (
@@ -184,14 +181,14 @@ export default function App() {
               />
             </div>
 
-            <hr style={{ margin: "20px 0", border: "none", borderTop: "2px solid #e5e7eb" }} />
+            <hr style={{ margin: "20px 0", border: "none", borderTop: "1px solid #e5e7eb" }} />
             <div style={{ ...S.card, border: "none", boxShadow: "none", padding: 0 }}>
               <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12, color: "#1f2937" }}>未送信</h2>
               <PendingList
                 items={items}
                 onDeleteOne={async (id) => {
                   setConfirmDialog({
-                    message: "未送信データを削除しますか？\n\nこの操作は取り消せません。",
+                    message: "未送信データを削除しますか？",
                     onConfirm: async () => {
                       await hardDeleteExpense(id);
                       await refresh();

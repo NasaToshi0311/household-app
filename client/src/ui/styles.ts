@@ -5,7 +5,7 @@ export const page: React.CSSProperties = {
   maxWidth: 520,
   margin: "0 auto",
   fontFamily: "system-ui",
-  background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+  background: "#f7f5f2",
   minHeight: "100vh",
 };
 
@@ -13,21 +13,20 @@ export const h1: React.CSSProperties = {
   fontSize: 24,
   fontWeight: 800,
   margin: "8px 0 16px",
-  color: "#ffffff",
-  textShadow: "0 2px 4px rgba(0,0,0,0.2)",
+  color: "#1f2937",
 };
 
 export const card: React.CSSProperties = {
-  border: "1px solid rgba(255,255,255,0.3)",
+  border: "1px solid #e5e7eb",
   borderRadius: 16,
   padding: 16,
   background: "#ffffff",
-  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
 };
 
 export const label: React.CSSProperties = {
   fontSize: 13,
-  color: "#555",
+  color: "#1f2937",
   marginBottom: 6,
   fontWeight: 600,
 };
@@ -36,10 +35,11 @@ export const input: React.CSSProperties = {
   width: "100%",
   padding: 12,
   borderRadius: 12,
-  border: "2px solid #e0e0e0",
+  border: "2px solid #e5e7eb",
   background: "#fff",
   outline: "none",
   fontSize: 15,
+  color: "#1f2937",
   transition: "border-color 0.2s",
 };
 
@@ -52,22 +52,22 @@ export const row: React.CSSProperties = {
 export const btn: React.CSSProperties = {
   padding: "10px 16px",
   borderRadius: 12,
-  border: "2px solid #e0e0e0",
-  background: "#f8f9fa",
+  border: "2px solid #e5e7eb",
+  background: "#ffffff",
   cursor: "pointer",
   fontSize: 14,
   fontWeight: 600,
   transition: "all 0.2s",
-  color: "#333",
+  color: "#1f2937",
 };
 
 export const btnPrimary: React.CSSProperties = {
   ...btn,
-  border: "2px solid #4f46e5",
-  background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-  color: "#fff",
+  border: "2px solid #16a34a",
+  background: "#16a34a",
+  color: "#ffffff",
   fontWeight: 700,
-  boxShadow: "0 2px 8px rgba(102, 126, 234, 0.4)",
+  boxShadow: "0 2px 8px rgba(22, 163, 74, 0.3)",
 };
 
 export const btnDanger: React.CSSProperties = {
@@ -110,8 +110,8 @@ export const successBox: React.CSSProperties = {
 };
 
 export const infoBox: React.CSSProperties = {
-  background: "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)",
-  border: "2px solid #3b82f6",
+  background: "#eff6ff",
+  border: "2px solid #93c5fd",
   padding: 12,
   borderRadius: 12,
   color: "#1e40af",

@@ -7,7 +7,6 @@ type Props = {
   online: boolean;
   syncing: boolean;
   onSync: () => void;
-  onBaseUrlChange?: (url: string) => void;
   onConfiguredChange?: (isConfigured: boolean) => void;
 };
 
@@ -16,18 +15,12 @@ export default function ApiUrlBox({
   online,
   syncing,
   onSync,
-  onBaseUrlChange,
   onConfiguredChange,
 }: Props) {
   const [syncUrlError, setSyncUrlError] = useState<string | null>(null);
   const [syncUrlParamState, setSyncUrlParamState] = useState<string | null>(null);
 
-  const onBaseUrlChangeRef = useRef(onBaseUrlChange);
   const onConfiguredChangeRef = useRef(onConfiguredChange);
-
-  useEffect(() => {
-    onBaseUrlChangeRef.current = onBaseUrlChange;
-  }, [onBaseUrlChange]);
 
   useEffect(() => {
     onConfiguredChangeRef.current = onConfiguredChange;
@@ -59,7 +52,6 @@ export default function ApiUrlBox({
 
       if (normalized) {
         setApiBaseUrl(normalized);
-        onBaseUrlChangeRef.current?.(normalized);
       }
       if (apiKey) {
         setApiKey(apiKey);
@@ -87,11 +79,7 @@ export default function ApiUrlBox({
       return;
     }
 
-    // 既存設定の反映（親への通知だけしておく）
-    const saved = getApiBaseUrl().trim();
-    if (saved) {
-      onBaseUrlChangeRef.current?.(saved);
-    }
+    // 既存設定の反映
     notifyConfigured();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
