@@ -1,12 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import {
-  getApiBaseUrl,
-  setApiBaseUrl,
-  setApiKey,
-  getApiKey,
-  clearApiBaseUrl,
-  clearApiKey,
-} from "../config/api";
+import { getApiBaseUrl, setApiBaseUrl, setApiKey, getApiKey } from "../config/api";
 import * as S from "../ui/styles";
 
 type Props = {
@@ -26,10 +19,8 @@ export default function ApiUrlBox({
   onBaseUrlChange,
   onConfiguredChange,
 }: Props) {
-  const [baseUrl, setBaseUrlState] = useState("");
   const [syncUrlError, setSyncUrlError] = useState<string | null>(null);
   const [syncUrlParamState, setSyncUrlParamState] = useState<string | null>(null);
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const onBaseUrlChangeRef = useRef(onBaseUrlChange);
   const onConfiguredChangeRef = useRef(onConfiguredChange);
@@ -67,7 +58,6 @@ export default function ApiUrlBox({
       const apiKey = data.api_key ? String(data.api_key) : "";
 
       if (normalized) {
-        setBaseUrlState(normalized);
         setApiBaseUrl(normalized);
         onBaseUrlChangeRef.current?.(normalized);
       }
@@ -77,7 +67,6 @@ export default function ApiUrlBox({
 
       notifyConfigured(normalized, apiKey);
 
-      // 使い終わったらURLから削除
       removeUrlParams(["sync_url"]);
       setSyncUrlParamState(null);
       setSyncUrlError(null);
@@ -91,16 +80,16 @@ export default function ApiUrlBox({
     const raw = params.get("sync_url");
     const syncUrlParam = raw ? decodeURIComponent(raw) : null;
 
+    // QRから来たときは最優先で自動設定
     if (syncUrlParam) {
       setSyncUrlParamState(syncUrlParam);
       fetchSyncUrl(syncUrlParam);
       return;
     }
 
-    // 既存設定
-    const saved = getApiBaseUrl();
+    // 既存設定の反映（親への通知だけしておく）
+    const saved = getApiBaseUrl().trim();
     if (saved) {
-      setBaseUrlState(saved);
       onBaseUrlChangeRef.current?.(saved);
     }
     notifyConfigured();
@@ -115,7 +104,6 @@ export default function ApiUrlBox({
         同期
       </div>
 
-      {/* 同期ボタン（普段使うのはこれだけ） */}
       <button
         onClick={onSync}
         disabled={!online || syncing || !configured}
@@ -135,7 +123,6 @@ export default function ApiUrlBox({
           : "同期する"}
       </button>
 
-      {/* エラー（QR設定が失敗したときだけ出す） */}
       {syncUrlError && (
         <div style={{ ...S.warningBox, marginTop: 12 }}>
           ⚠ {syncUrlError}
@@ -148,47 +135,6 @@ export default function ApiUrlBox({
             </button>
           )}
         </div>
-      )}
-
-      {/* 詳細設定（必要な人だけ開く） */}
-      <button
-        onClick={() => setShowAdvanced((v) => !v)}
-        style={{ ...S.btn, width: "100%", marginTop: 12 }}
-      >
-        {showAdvanced ? "詳細設定を閉じる" : "詳細設定（URL手入力/リセット）"}
-      </button>
-
-      {showAdvanced && (
-        <>
-          <div style={{ marginTop: 12 }}>
-            <div style={S.label}>同期先URL（PCのIP）</div>
-            <input
-              placeholder="http://192.168.x.x:8000"
-              value={baseUrl}
-              onChange={(e) => {
-                const v = e.target.value;
-                setBaseUrlState(v);
-                setApiBaseUrl(v);
-                onBaseUrlChangeRef.current?.(v);
-                notifyConfigured(v, getApiKey());
-              }}
-              style={S.input}
-            />
-          </div>
-
-          <button
-            onClick={() => {
-              clearApiBaseUrl();
-              clearApiKey();
-              setBaseUrlState("");
-              onBaseUrlChangeRef.current?.("");
-              onConfiguredChangeRef.current?.(false);
-            }}
-            style={{ ...S.btn, width: "100%", marginTop: 12 }}
-          >
-            🔄 設定をリセット
-          </button>
-        </>
       )}
     </div>
   );
