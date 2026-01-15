@@ -55,16 +55,11 @@ def sync_qr_png():
     ip = get_lan_ip()
     base_url = f"http://{ip}:8000"
 
-    # スマホ（ブラウザ）が直接叩く用のURL（LAN内限定でOK）
     sync_url = f"{base_url}/sync/url"
 
-    # Vercelに渡す：sync_url と base_url（フロントで保存用）
-    # 重要：Vercel側は “ブラウザで” sync_url を fetch すること（SSRはNG）
-    qr_url = (
-        f"{FRONTEND_URL}/sync-setup"
-        f"?sync_url={quote(sync_url)}"
-        f"&base_url={quote(base_url)}"
-    )
+    # 設定画面へ飛ばす（←ここがポイント）
+    app_url = "https://household-app.vercel.app/sync-setup"
+    qr_url = f"{app_url}?sync_url={quote(sync_url)}"
 
     img = qrcode.make(qr_url)
     buf = BytesIO()
