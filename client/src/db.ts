@@ -74,7 +74,7 @@ async function migratePendingToExpenses(db: IDBPDatabase<HouseholdDB>) {
 }
 
 export const dbPromise = openDB<HouseholdDB>("household-db", 3, {
-  upgrade(db, oldVersion, newVersion, transaction) {
+  upgrade(db, oldVersion, _newVersion, transaction) {
     // v1 -> v2 相当: expenses + by-status, meta 作成
     if (oldVersion < 2) {
       const expensesStore = db.createObjectStore("expenses", { keyPath: "client_uuid" });
