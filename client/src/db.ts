@@ -1,4 +1,4 @@
-import { openDB, type DBSchema } from "idb";
+import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 
 export type Expense = {
   client_uuid: string;
@@ -12,7 +12,7 @@ export type Expense = {
   updated_at: string; // ISO string
 };
 
-// 後方互換性のため
+// 後方互換性のため（旧pendingストア）
 export type PendingExpense = {
   client_uuid: string;
   date: string;
@@ -39,29 +39,60 @@ interface HouseholdDB extends DBSchema {
   };
 }
 
-export const dbPromise = openDB<HouseholdDB>("household-db", 3, {
-  upgrade(db, oldVersion) {
-    if (oldVersion < 2) {
-      // version 1から2へのアップグレード
-      // スキーマ変更のみ: expensesストアとindex(by-status)を作成
-      const expensesStore = db.createObjectStore("expenses", {
-        keyPath: "client_uuid",
+/**
+ * DBオープン後の移行処理（pending -> expenses）で使う
+ */
+async function migratePendingToExpenses(db: IDBPDatabase<HouseholdDB>) {
+  try {
+    // expensesが空 かつ pendingが存在する場合のみ移行
+    const expensesCount = await db.count("expenses");
+    if (expensesCount > 0) return;
+
+    if (!db.objectStoreNames.contains("pending")) return;
+
+    const pendingItems = await db.getAll("pending");
+    if (pendingItems.length === 0) return;
+
+    const now = new Date().toISOString();
+    const tx = db.transaction("expenses", "readwrite");
+
+    for (const item of pendingItems) {
+      // PendingExpense には status/updated_at が無いので付与
+      await tx.store.put({
+        ...item,
+        status: "pending" as const,
+        updated_at: now,
       });
-      expensesStore.createIndex("by-status", "status");
-      // pendingストアは削除しない（安全のため残す）
-      // metaストアを作成（migration状態の永続化用）
-      db.createObjectStore("meta", { keyPath: "key" });
     }
-    
-    if (oldVersion === 2) {
-      // version 2から3へのアップグレード
-      // 日付範囲クエリ用のインデックスを追加
-      // oldVersion === 2の場合、expensesストアは既に存在している
-      const tx = db.transaction("expenses", "readwrite");
-      const expensesStore = tx.objectStore("expenses");
-      
-      // インデックスが存在しない場合のみ作成
-      if (expensesStore && !expensesStore.indexNames.contains("by-date")) {
+
+    await tx.done;
+    // pendingの削除はしない（安全のため残す）
+  } catch (error) {
+    console.error("Migration failed:", error);
+    // 移行に失敗しても続行
+  }
+}
+
+export const dbPromise = openDB<HouseholdDB>("household-db", 3, {
+  upgrade(db, oldVersion, newVersion, transaction) {
+    // v1 -> v2 相当: expenses + by-status, meta 作成
+    if (oldVersion < 2) {
+      const expensesStore = db.createObjectStore("expenses", { keyPath: "client_uuid" });
+      expensesStore.createIndex("by-status", "status");
+
+      // metaストア（migration状態の永続化用）
+      db.createObjectStore("meta", { keyPath: "key" });
+
+      // pendingストアは削除しない（既存がある前提で残す）
+      // （v1時点でpendingが無いなら当然無いまま）
+    }
+
+    // v2 -> v3: by-date を追加（範囲クエリ用）
+    // oldVersion<3 とすることで将来 v4 でも漏れない
+    if (oldVersion < 3) {
+      // upgrade内では db.transaction() を作らず、引数の transaction を使う
+      const expensesStore = transaction.objectStore("expenses");
+      if (!expensesStore.indexNames.contains("by-date")) {
         expensesStore.createIndex("by-date", "date");
       }
     }
@@ -75,50 +106,6 @@ export const dbPromise = openDB<HouseholdDB>("household-db", 3, {
   }
   return db;
 });
-
-/**
- * pendingストアからexpensesストアへのデータ移行
- * （DBオープン後の通常コードで実行）
- */
-async function migratePendingToExpenses(db: Awaited<typeof dbPromise>) {
-  try {
-    // expensesが空 かつ pendingが存在する場合のみ移行
-    const expensesCount = await db.count("expenses");
-    if (expensesCount > 0) {
-      // 既にデータが存在する場合は移行しない
-      return;
-    }
-
-    if (!db.objectStoreNames.contains("pending")) {
-      // pendingストアが存在しない場合は移行しない
-      return;
-    }
-
-    // pendingのgetAll()を実行
-    const pendingItems = await db.getAll("pending");
-    if (pendingItems.length === 0) {
-      // データがない場合は移行しない
-      return;
-    }
-
-    // 各itemをexpensesにput
-    const now = new Date().toISOString();
-    const tx = db.transaction("expenses", "readwrite");
-    for (const item of pendingItems) {
-      await tx.store.put({
-        ...item,
-        status: "pending" as const,
-        updated_at: now,
-      });
-    }
-    await tx.done;
-
-    // 移行完了後はpendingを参照しない（削除はしない）
-  } catch (error) {
-    console.error("Migration failed:", error);
-    // 移行に失敗しても続行
-  }
-}
 
 // 入力データからExpenseを作成（upsert用）
 export type ExpenseInput = {
@@ -136,12 +123,14 @@ export type ExpenseInput = {
 export async function upsertExpense(input: ExpenseInput): Promise<void> {
   const db = await dbPromise;
   const now = new Date().toISOString();
+
   const expense: Expense = {
     ...input,
     op: "upsert",
     status: "pending",
     updated_at: now,
   };
+
   await db.put("expenses", expense);
 }
 
@@ -164,11 +153,12 @@ export async function hardDeleteExpense(client_uuid: string): Promise<void> {
 
 /**
  * 明細を論理削除（op="delete", status="pending"に更新）
- * 次回同期時にサーバーへ送られ、deleted_atが立つ
+ * 次回同期時にサーバーへ送られ、deleted_atが立つ想定
  */
 export async function markDeleteExpense(client_uuid: string): Promise<void> {
   const db = await dbPromise;
   const expense = await db.get("expenses", client_uuid);
+
   if (!expense) {
     throw new Error(`Expense not found: ${client_uuid}`);
   }
@@ -191,7 +181,6 @@ export async function markSynced(okUuids: string[]): Promise<void> {
   const db = await dbPromise;
   const tx = db.transaction("expenses", "readwrite");
   const store = tx.store;
-
   const now = new Date().toISOString();
 
   for (const uuid of okUuids) {
@@ -210,22 +199,19 @@ export async function markSynced(okUuids: string[]): Promise<void> {
 
 /**
  * 期間で絞り込んで支出を取得（op=="delete"は除外）
- * IndexedDBの範囲クエリを使用して効率的に検索
+ * IndexedDBの範囲クエリを使用
  */
-export async function getExpensesByRange(
-  from: string,
-  to: string
-): Promise<Expense[]> {
+export async function getExpensesByRange(from: string, to: string): Promise<Expense[]> {
   const db = await dbPromise;
+
   const tx = db.transaction("expenses", "readonly");
   const index = tx.store.index("by-date");
 
-  // 日付範囲でクエリ（from <= date <= to）
-  // IDBKeyRange.bound(from, to, false, false) は [from, to] の範囲
+  // [from, to] の範囲
   const range = IDBKeyRange.bound(from, to, false, false);
   const items = await index.getAll(range);
 
-  // op=="delete"のものを除外（範囲クエリでは日付での絞り込みのみ）
+  // delete は除外
   return items.filter((expense) => expense.op !== "delete");
 }
 
