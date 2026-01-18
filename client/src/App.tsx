@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { upsertExpense, getPendingExpenses, hardDeleteExpense, markSynced } from "./db";
 import type { Expense, ExpenseInput } from "./db";
 import { useOnline } from "./hooks/useOnline";
-import { getApiBaseUrl, getApiKey, isSetupViaQr } from "./config/api";
+import { getApiBaseUrl, getApiKey, isSetupViaQr, clearSetup } from "./config/api";
 import SummaryPage from "./pages/SummaryPage";
 import { syncExpenses } from "./api/expenses";
 import ApiUrlBox from "./components/ApiUrlBox";
@@ -18,6 +18,7 @@ export default function App() {
   const [tab, setTab] = useState<"input" | "summary">("input");
   const online = useOnline();
   const [syncing, setSyncing] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     message: string;
     onConfirm: () => void;
@@ -41,6 +42,13 @@ export default function App() {
   const handleConfiguredChange = useCallback(() => {
     forceRender((v) => v + 1);
   }, []);
+
+  function handleReset() {
+    if (confirm("設定をリセットしますか？この操作は取り消せません。")) {
+      clearSetup();
+      handleConfiguredChange();
+    }
+  }
 
   async function sync() {
     if (syncing) return;
@@ -99,7 +107,7 @@ export default function App() {
   // --- 権限なし画面 ---
   if (!authorized) {
     return (
-      <div style={S.page}>
+      <div style={{ ...S.page, display: "flex", flexDirection: "column" }}>
         <h1 style={S.h1}>家計簿（スマホ）</h1>
         <div style={S.card}>
           <div style={{ textAlign: "center", padding: "24px 16px" }}>
@@ -120,15 +128,34 @@ export default function App() {
             syncing={syncing}
             onSync={sync}
             onConfiguredChange={handleConfiguredChange}
+            onSettingsOpenChange={setSettingsOpen}
           />
         </div>
+
+        {settingsOpen && configured && (
+          <div style={{ marginTop: "auto", paddingTop: 16 }}>
+            <button
+              onClick={handleReset}
+              style={{
+                ...S.btn,
+                width: "100%",
+                fontSize: 13,
+                background: "#fee2e2",
+                color: "#dc2626",
+                border: "1px solid #fca5a5",
+              }}
+            >
+              ⚠️ 設定をリセット
+            </button>
+          </div>
+        )}
       </div>
     );
   }
 
   // --- 本画面 ---
   return (
-    <div style={S.page}>
+    <div style={{ ...S.page, display: "flex", flexDirection: "column" }}>
       <h1 style={S.h1}>家計簿（スマホ）</h1>
 
       <div style={S.card}>
@@ -138,6 +165,7 @@ export default function App() {
           syncing={syncing}
           onSync={sync}
           onConfiguredChange={handleConfiguredChange}
+          onSettingsOpenChange={setSettingsOpen}
         />
       </div>
 
@@ -213,6 +241,24 @@ export default function App() {
           onConfirm={confirmDialog.onConfirm}
           onCancel={() => setConfirmDialog(null)}
         />
+      )}
+
+      {settingsOpen && configured && (
+        <div style={{ marginTop: "auto", paddingTop: 16, paddingBottom: 16 }}>
+          <button
+            onClick={handleReset}
+            style={{
+              ...S.btn,
+              width: "100%",
+              fontSize: 13,
+              background: "#fee2e2",
+              color: "#dc2626",
+              border: "1px solid #fca5a5",
+            }}
+          >
+            ⚠️ 設定をリセット
+          </button>
+        </div>
       )}
     </div>
   );

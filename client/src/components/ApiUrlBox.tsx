@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { getApiBaseUrl, setApiBaseUrl, setApiKey, getApiKey, setSetupViaQr, clearSetup } from "../config/api";
+import { getApiBaseUrl, setApiBaseUrl, setApiKey, getApiKey, setSetupViaQr } from "../config/api";
 import * as S from "../ui/styles";
 
 type Props = {
@@ -8,6 +8,7 @@ type Props = {
   syncing: boolean;
   onSync: () => void;
   onConfiguredChange?: () => void;
+  onSettingsOpenChange?: (isOpen: boolean) => void;
 };
 
 export default function ApiUrlBox({
@@ -16,25 +17,29 @@ export default function ApiUrlBox({
   syncing,
   onSync,
   onConfiguredChange,
+  onSettingsOpenChange,
 }: Props) {
+  const [isOpen, setIsOpen] = useState(false);
   const [syncUrlError, setSyncUrlError] = useState<string | null>(null);
   const [syncUrlParamState, setSyncUrlParamState] = useState<string | null>(null);
 
   const onConfiguredChangeRef = useRef(onConfiguredChange);
+  const onSettingsOpenChangeRef = useRef(onSettingsOpenChange);
 
   useEffect(() => {
     onConfiguredChangeRef.current = onConfiguredChange;
   }, [onConfiguredChange]);
 
+  useEffect(() => {
+    onSettingsOpenChangeRef.current = onSettingsOpenChange;
+  }, [onSettingsOpenChange]);
+
+  useEffect(() => {
+    onSettingsOpenChangeRef.current?.(isOpen);
+  }, [isOpen]);
+
   function notifyConfigured() {
     onConfiguredChangeRef.current?.();
-  }
-
-  function handleReset() {
-    if (confirm("設定をリセットしますか？この操作は取り消せません。")) {
-      clearSetup();
-      notifyConfigured();
-    }
   }
 
   function removeUrlParams(paramsToRemove: string[]) {
@@ -102,59 +107,64 @@ export default function ApiUrlBox({
   const configured = !!getApiBaseUrl().trim() && !!getApiKey().trim();
 
   return (
-    <div style={{ ...S.card, display: "flex", flexDirection: "column" }}>
-      <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16, color: "#1f2937" }}>
-        同期
-      </div>
-
-      <button
-        onClick={onSync}
-        disabled={!online || syncing || !configured}
+    <div style={S.card}>
+      <div
         style={{
-          ...(online && !syncing && configured ? S.btnPrimary : S.btn),
-          width: "100%",
-          opacity: online && !syncing && configured ? 1 : 0.6,
-          cursor: online && !syncing && configured ? "pointer" : "not-allowed",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: isOpen ? 12 : 0,
         }}
       >
-        {syncing
-          ? "同期中..."
-          : !configured
-          ? "まずQRで同期設定してください"
-          : itemsCount > 0
-          ? `同期する（未送信 ${itemsCount} 件）`
-          : "同期する"}
-      </button>
-
-      {syncUrlError && (
-        <div style={{ ...S.warningBox, marginTop: 12 }}>
-          ⚠ {syncUrlError}
-          {syncUrlParamState && (
-            <button
-              onClick={() => fetchSyncUrl(syncUrlParamState)}
-              style={{ ...S.btnPrimary, width: "100%", marginTop: 8, fontSize: 13 }}
-            >
-              🔄 再試行
-            </button>
-          )}
-        </div>
-      )}
-
-      {configured && (
+        <div style={{ fontWeight: 700, fontSize: 16, color: "#1f2937" }}>同期</div>
         <button
-          onClick={handleReset}
+          onClick={() => setIsOpen(!isOpen)}
           style={{
             ...S.btn,
-            width: "100%",
-            marginTop: "auto",
+            padding: "6px 12px",
             fontSize: 13,
-            background: "#fee2e2",
-            color: "#dc2626",
-            border: "1px solid #fca5a5",
+            background: isOpen ? "#f3f4f6" : "#ffffff",
           }}
         >
-          ⚠️ 設定をリセット
+          {isOpen ? "設定を閉じる" : "設定"}
         </button>
+      </div>
+
+      {isOpen && (
+        <>
+          <button
+            onClick={onSync}
+            disabled={!online || syncing || !configured}
+            style={{
+              ...(online && !syncing && configured ? S.btnPrimary : S.btn),
+              width: "100%",
+              opacity: online && !syncing && configured ? 1 : 0.6,
+              cursor: online && !syncing && configured ? "pointer" : "not-allowed",
+            }}
+          >
+            {syncing
+              ? "同期中..."
+              : !configured
+              ? "まずQRで同期設定してください"
+              : itemsCount > 0
+              ? `同期する（未送信 ${itemsCount} 件）`
+              : "同期する"}
+          </button>
+
+          {syncUrlError && (
+            <div style={{ ...S.warningBox, marginTop: 12 }}>
+              ⚠ {syncUrlError}
+              {syncUrlParamState && (
+                <button
+                  onClick={() => fetchSyncUrl(syncUrlParamState)}
+                  style={{ ...S.btnPrimary, width: "100%", marginTop: 8, fontSize: 13 }}
+                >
+                  🔄 再試行
+                </button>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
