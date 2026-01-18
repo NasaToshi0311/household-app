@@ -98,45 +98,41 @@ export default function ApiUrlBox({
 
   return (
     <div style={S.card}>
-      <div style={{ fontWeight: 700, marginBottom: isOpen ? 12 : 0, fontSize: 16, color: "#1f2937" }}>
+      <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16, color: "#1f2937" }}>
         同期
       </div>
 
-      {isOpen && (
-        <>
-          <button
-            onClick={onSync}
-            disabled={!online || syncing || !configured}
-            style={{
-              ...(online && !syncing && configured ? S.btnPrimary : S.btn),
-              width: "100%",
-              opacity: online && !syncing && configured ? 1 : 0.6,
-              cursor: online && !syncing && configured ? "pointer" : "not-allowed",
-            }}
-          >
-            {syncing
-              ? "同期中..."
-              : !configured
-              ? "まずQRで同期設定してください"
-              : itemsCount > 0
-              ? `同期する（未送信 ${itemsCount} 件）`
-              : "同期する"}
-          </button>
+      <button
+        onClick={onSync}
+        disabled={!online || syncing || !configured}
+        style={{
+          ...(online && !syncing && configured ? S.btnPrimary : S.btn),
+          width: "100%",
+          opacity: online && !syncing && configured ? 1 : 0.6,
+          cursor: online && !syncing && configured ? "pointer" : "not-allowed",
+        }}
+      >
+        {syncing
+          ? "同期中..."
+          : !configured
+          ? "まずQRで同期設定してください"
+          : itemsCount > 0
+          ? `同期する（未送信 ${itemsCount} 件）`
+          : "同期する"}
+      </button>
 
-          {syncUrlError && (
-            <div style={{ ...S.warningBox, marginTop: 12 }}>
-              ⚠ {syncUrlError}
-              {syncUrlParamState && (
-                <button
-                  onClick={() => fetchSyncUrl(syncUrlParamState)}
-                  style={{ ...S.btnPrimary, width: "100%", marginTop: 8, fontSize: 13 }}
-                >
-                  🔄 再試行
-                </button>
-              )}
-            </div>
+      {isOpen && syncUrlError && (
+        <div style={{ ...S.warningBox, marginTop: 12 }}>
+          ⚠ {syncUrlError}
+          {syncUrlParamState && (
+            <button
+              onClick={() => fetchSyncUrl(syncUrlParamState)}
+              style={{ ...S.btnPrimary, width: "100%", marginTop: 8, fontSize: 13 }}
+            >
+              🔄 再試行
+            </button>
           )}
-        </>
+        </div>
       )}
     </div>
   );
