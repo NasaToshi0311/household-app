@@ -8,7 +8,7 @@ type Props = {
   syncing: boolean;
   onSync: () => void;
   onConfiguredChange?: () => void;
-  onSettingsOpenChange?: (isOpen: boolean) => void;
+  isOpen: boolean;
 };
 
 export default function ApiUrlBox({
@@ -17,26 +17,16 @@ export default function ApiUrlBox({
   syncing,
   onSync,
   onConfiguredChange,
-  onSettingsOpenChange,
+  isOpen,
 }: Props) {
-  const [isOpen, setIsOpen] = useState(false);
   const [syncUrlError, setSyncUrlError] = useState<string | null>(null);
   const [syncUrlParamState, setSyncUrlParamState] = useState<string | null>(null);
 
   const onConfiguredChangeRef = useRef(onConfiguredChange);
-  const onSettingsOpenChangeRef = useRef(onSettingsOpenChange);
 
   useEffect(() => {
     onConfiguredChangeRef.current = onConfiguredChange;
   }, [onConfiguredChange]);
-
-  useEffect(() => {
-    onSettingsOpenChangeRef.current = onSettingsOpenChange;
-  }, [onSettingsOpenChange]);
-
-  useEffect(() => {
-    onSettingsOpenChangeRef.current?.(isOpen);
-  }, [isOpen]);
 
   function notifyConfigured() {
     onConfiguredChangeRef.current?.();
@@ -108,26 +98,8 @@ export default function ApiUrlBox({
 
   return (
     <div style={S.card}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: isOpen ? 12 : 0,
-        }}
-      >
-        <div style={{ fontWeight: 700, fontSize: 16, color: "#1f2937" }}>同期</div>
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          style={{
-            ...S.btn,
-            padding: "6px 12px",
-            fontSize: 13,
-            background: isOpen ? "#f3f4f6" : "#ffffff",
-          }}
-        >
-          {isOpen ? "設定を閉じる" : "設定"}
-        </button>
+      <div style={{ fontWeight: 700, marginBottom: isOpen ? 12 : 0, fontSize: 16, color: "#1f2937" }}>
+        同期
       </div>
 
       {isOpen && (

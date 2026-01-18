@@ -128,17 +128,30 @@ export default function App() {
             syncing={syncing}
             onSync={sync}
             onConfiguredChange={handleConfiguredChange}
-            onSettingsOpenChange={setSettingsOpen}
+            isOpen={settingsOpen}
           />
         </div>
 
-        {settingsOpen && configured && (
-          <div style={{ marginTop: "auto", paddingTop: 16 }}>
+        <div style={{ marginTop: "auto", paddingTop: 16 }}>
+          <button
+            onClick={() => setSettingsOpen(!settingsOpen)}
+            style={{
+              ...S.btn,
+              width: "100%",
+              fontSize: 13,
+              background: settingsOpen ? "#f3f4f6" : "#ffffff",
+            }}
+          >
+            {settingsOpen ? "設定を閉じる" : "設定"}
+          </button>
+
+          {settingsOpen && configured && (
             <button
               onClick={handleReset}
               style={{
                 ...S.btn,
                 width: "100%",
+                marginTop: 12,
                 fontSize: 13,
                 background: "#fee2e2",
                 color: "#dc2626",
@@ -147,8 +160,8 @@ export default function App() {
             >
               ⚠️ 設定をリセット
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     );
   }
@@ -165,7 +178,7 @@ export default function App() {
           syncing={syncing}
           onSync={sync}
           onConfiguredChange={handleConfiguredChange}
-          onSettingsOpenChange={setSettingsOpen}
+          isOpen={settingsOpen}
         />
       </div>
 
@@ -243,13 +256,26 @@ export default function App() {
         />
       )}
 
-      {settingsOpen && configured && (
-        <div style={{ marginTop: "auto", paddingTop: 16, paddingBottom: 16 }}>
+      <div style={{ marginTop: "auto", paddingTop: 16, paddingBottom: 16 }}>
+        <button
+          onClick={() => setSettingsOpen(!settingsOpen)}
+          style={{
+            ...S.btn,
+            width: "100%",
+            fontSize: 13,
+            background: settingsOpen ? "#f3f4f6" : "#ffffff",
+          }}
+        >
+          {settingsOpen ? "設定を閉じる" : "設定"}
+        </button>
+
+        {settingsOpen && configured && (
           <button
             onClick={handleReset}
             style={{
               ...S.btn,
               width: "100%",
+              marginTop: 12,
               fontSize: 13,
               background: "#fee2e2",
               color: "#dc2626",
@@ -258,8 +284,8 @@ export default function App() {
           >
             ⚠️ 設定をリセット
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
