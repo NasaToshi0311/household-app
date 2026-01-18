@@ -25,6 +25,7 @@ export default function SummaryPage() {
   const today = useMemo(() => new Date(), []);
   const [start, setStart] = useState<string>(ymd(startOfMonth(today)));
   const [end, setEnd] = useState<string>(ymd(endOfMonth(today)));
+  const [expenseLimit, setExpenseLimit] = useState<number>(20);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +95,7 @@ export default function SummaryPage() {
           if (dateCompare !== 0) return dateCompare;
           return b.client_uuid.localeCompare(a.client_uuid);
         })
-        .slice(0, 50);
+        .slice(0, expenseLimit);
 
       setSummary({ start, end, total });
       setByCategory(byCategory);
@@ -106,7 +107,7 @@ export default function SummaryPage() {
     } finally {
       setLoading(false);
     }
-  }, [start, end]);
+  }, [start, end, expenseLimit]);
 
   async function deleteExpense(clientUuid: string) {
     if (!clientUuid) return;
@@ -385,8 +386,30 @@ export default function SummaryPage() {
       <div style={{ height: 12 }} />
 
       <div style={cardStyle}>
-        <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16, color: "#1f2937" }}>
-          明細（最新50件）
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <div style={{ fontWeight: 700, fontSize: 16, color: "#1f2937" }}>
+            明細（最新{expenseLimit}件）
+          </div>
+          <select
+            value={expenseLimit}
+            onChange={(e) => setExpenseLimit(Number(e.target.value))}
+            style={{
+              padding: "6px 12px",
+              borderRadius: 8,
+              border: "2px solid #e5e7eb",
+              background: "#ffffff",
+              fontSize: 13,
+              fontWeight: 600,
+              color: "#1f2937",
+              cursor: "pointer",
+            }}
+          >
+            {[10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((num) => (
+              <option key={num} value={num}>
+                {num}件
+              </option>
+            ))}
+          </select>
         </div>
         {expenses.length === 0 ? (
           <div style={{ color: "#9ca3af", fontSize: 14, fontStyle: "italic" }}>データなし</div>
