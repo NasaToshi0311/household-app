@@ -58,10 +58,10 @@ export const dbPromise = openDB<HouseholdDB>("household-db", 3, {
       // 日付範囲クエリ用のインデックスを追加
       // oldVersion === 2の場合、expensesストアは既に存在している
       const tx = db.transaction("expenses", "readwrite");
-      const expensesStore = tx.objectStore("expenses")!;
+      const expensesStore = tx.objectStore("expenses");
       
       // インデックスが存在しない場合のみ作成
-      if (!expensesStore.indexNames.contains("by-date")) {
+      if (expensesStore && !expensesStore.indexNames.contains("by-date")) {
         expensesStore.createIndex("by-date", "date");
       }
     }
