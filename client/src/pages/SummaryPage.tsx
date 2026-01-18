@@ -33,8 +33,11 @@ export default function SummaryPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [byCategory, setByCategory] = useState<ByCategory[]>([]);
   const [byPayer, setByPayer] = useState<ByPayer[]>([]);
+  const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [pendingCount, setPendingCount] = useState<number>(0);
+  const [filterCategory, setFilterCategory] = useState<string | null>(null);
+  const [filterPayer, setFilterPayer] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     message: string;
     onConfirm: () => void;
@@ -94,13 +97,12 @@ export default function SummaryPage() {
           const dateCompare = b.date.localeCompare(a.date);
           if (dateCompare !== 0) return dateCompare;
           return b.client_uuid.localeCompare(a.client_uuid);
-        })
-        .slice(0, expenseLimit);
+        });
 
       setSummary({ start, end, total });
       setByCategory(byCategory);
       setByPayer(byPayer);
-      setExpenses(expensesList);
+      setAllExpenses(expensesList);
       setPendingCount(pending);
     } catch (err: any) {
       setError(err?.message ?? "エラー");
@@ -134,6 +136,47 @@ export default function SummaryPage() {
   useEffect(() => {
     calculateLocalSummary();
   }, [calculateLocalSummary]);
+
+  // フィルタ適用
+  useEffect(() => {
+    let filtered = [...allExpenses];
+
+    if (filterCategory) {
+      filtered = filtered.filter((e) => e.category === filterCategory);
+    }
+
+    if (filterPayer) {
+      filtered = filtered.filter((e) => e.paid_by === filterPayer);
+    }
+
+    setExpenses(filtered.slice(0, expenseLimit));
+  }, [allExpenses, filterCategory, filterPayer, expenseLimit]);
+
+  // カテゴリフィルタを設定
+  const handleCategoryClick = (category: string) => {
+    if (filterCategory === category) {
+      setFilterCategory(null);
+    } else {
+      setFilterCategory(category);
+      setFilterPayer(null); // 支払者フィルタをクリア
+    }
+  };
+
+  // 支払者フィルタを設定
+  const handlePayerClick = (paid_by: string | null) => {
+    if (filterPayer === paid_by) {
+      setFilterPayer(null);
+    } else {
+      setFilterPayer(paid_by);
+      setFilterCategory(null); // カテゴリフィルタをクリア
+    }
+  };
+
+  // フィルタをクリア
+  const clearFilters = () => {
+    setFilterCategory(null);
+    setFilterPayer(null);
+  };
 
   function setThisMonth() {
     const d = new Date();
@@ -298,9 +341,11 @@ export default function SummaryPage() {
         ) : (
           <div style={{ display: "grid", gap: 8 }}>
             {byCategory.slice(0, 10).map((c) => {
+              const isSelected = filterCategory === c.category;
               return (
                 <div
                   key={c.category}
+                  onClick={() => handleCategoryClick(c.category)}
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
@@ -308,8 +353,10 @@ export default function SummaryPage() {
                     gap: 8,
                     padding: "12px 14px",
                     borderRadius: 10,
-                    background: "#f9fafb",
-                    border: "1px solid #e5e7eb",
+                    background: isSelected ? "#eff6ff" : "#f9fafb",
+                    border: isSelected ? "2px solid #3b82f6" : "1px solid #e5e7eb",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
                   }}
                 >
                   <div style={{ color: "#1f2937", fontWeight: 600, fontSize: 15 }}>{c.category}</div>
@@ -348,9 +395,11 @@ export default function SummaryPage() {
                 p.paid_by && (p.paid_by === "me" || p.paid_by === "her")
                   ? payerLabel[p.paid_by]
                   : p.paid_by ?? "未設定";
+              const isSelected = filterPayer === p.paid_by;
               return (
                 <div
                   key={p.paid_by ?? "null"}
+                  onClick={() => handlePayerClick(p.paid_by)}
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
@@ -358,8 +407,10 @@ export default function SummaryPage() {
                     gap: 8,
                     padding: "12px 14px",
                     borderRadius: 10,
-                    background: "#f9fafb",
-                    border: "1px solid #e5e7eb",
+                    background: isSelected ? "#eff6ff" : "#f9fafb",
+                    border: isSelected ? "2px solid #3b82f6" : "1px solid #e5e7eb",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
                   }}
                 >
                   <div style={{ color: "#1f2937", fontWeight: 600, fontSize: 15 }}>{payerName}</div>
@@ -388,7 +439,7 @@ export default function SummaryPage() {
       <div style={cardStyle}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div style={{ fontWeight: 700, fontSize: 16, color: "#1f2937" }}>
-            明細（最新{expenseLimit}件）
+            明細（{filterCategory || filterPayer ? `フィルタ適用中: ${expenses.length}件` : `最新${expenseLimit}件`}）
           </div>
           <select
             value={expenseLimit}
@@ -411,6 +462,41 @@ export default function SummaryPage() {
             ))}
           </select>
         </div>
+        {(filterCategory || filterPayer) && (
+          <div
+            style={{
+              marginBottom: 12,
+              padding: "10px 14px",
+              background: "#eff6ff",
+              border: "1px solid #93c5fd",
+              borderRadius: 8,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <div style={{ fontSize: 13, color: "#1e40af", fontWeight: 500 }}>
+              {filterCategory && `カテゴリ: ${filterCategory}`}
+              {filterPayer && `支払者: ${filterPayer && (filterPayer === "me" || filterPayer === "her") ? payerLabel[filterPayer] : filterPayer ?? "未設定"}`}
+            </div>
+            <button
+              onClick={clearFilters}
+              style={{
+                padding: "4px 12px",
+                borderRadius: 6,
+                border: "1px solid #3b82f6",
+                background: "#ffffff",
+                color: "#3b82f6",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}
+            >
+              フィルタ解除
+            </button>
+          </div>
+        )}
         {expenses.length === 0 ? (
           <div style={{ color: "#9ca3af", fontSize: 14, fontStyle: "italic" }}>データなし</div>
         ) : (
