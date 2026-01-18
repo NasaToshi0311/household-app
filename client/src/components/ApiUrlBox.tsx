@@ -102,7 +102,7 @@ export default function ApiUrlBox({
   const configured = !!getApiBaseUrl().trim() && !!getApiKey().trim();
 
   return (
-    <div style={S.card}>
+    <div style={{ ...S.card, display: "flex", flexDirection: "column" }}>
       <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16, color: "#1f2937" }}>
         同期
       </div>
@@ -146,7 +146,7 @@ export default function ApiUrlBox({
           style={{
             ...S.btn,
             width: "100%",
-            marginTop: 12,
+            marginTop: "auto",
             fontSize: 13,
             background: "#fee2e2",
             color: "#dc2626",
