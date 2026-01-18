@@ -5,8 +5,17 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger(__name__)
 
-# APIキーを環境変数から読み込む（デフォルト値あり）
-API_KEY = os.environ.get("API_KEY", "household-app-secret-key-2024")
+# APIキーを環境変数から読み込む
+API_KEY = os.environ.get("API_KEY")
+
+# 本番環境では環境変数が必須
+if not API_KEY:
+    default_key = "household-app-secret-key-2024"
+    logger.warning(
+        f"API_KEY環境変数が設定されていません。デフォルトキー({default_key[:10]}...)を使用します。"
+        "本番環境では必ずAPI_KEY環境変数を設定してください。"
+    )
+    API_KEY = default_key
 
 # 認証不要なパス
 PUBLIC_PATHS = [
@@ -44,11 +53,10 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
             )
         
         if api_key != API_KEY:
-            # デバッグ用: 実際のAPIキーはログに出力しない（セキュリティのため）
-            logger.warning(f"APIキー不一致: {request.method} {request.url.path}, 期待長: {len(API_KEY)}, 受信長: {len(api_key) if api_key else 0}")
+            logger.warning(f"APIキー不一致: {request.method} {request.url.path}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"Invalid API key. Expected length: {len(API_KEY)}, Received length: {len(api_key) if api_key else 0}"
+                detail="Invalid API key. Please scan QR code to set API key."
             )
         
         logger.info(f"認証成功: {request.method} {request.url.path}")

@@ -19,11 +19,24 @@ export default function ExpenseForm({ onAdd }: Props) {
       return;
     }
 
+    // 小数点が含まれていないかチェック（整数のみ許可）
+    if (amount.includes(".") || amount.includes(",")) {
+      alert("金額は整数のみ入力してください（小数点は使用できません）");
+      return;
+    }
+
     const amountNum = Number(amount);
     if (isNaN(amountNum) || amountNum <= 0) {
       alert("金額は0より大きい数値を入力してください");
       return;
     }
+
+    // 整数であることを確認（Number()は小数点を許可するため）
+    if (!Number.isInteger(amountNum)) {
+      alert("金額は整数のみ入力してください");
+      return;
+    }
+
     if (amountNum > 1000000000) {
       alert("金額は10億円以下で入力してください");
       return;
@@ -34,10 +47,13 @@ export default function ExpenseForm({ onAdd }: Props) {
       return;
     }
 
+    // 確実に整数に変換（サーバー側はint型を要求）
+    const amountInt = Math.floor(amountNum);
+
     const item: PendingExpense = {
       client_uuid: uuidv4(),
       date: new Date().toISOString().slice(0, 10),
-      amount: amountNum,
+      amount: amountInt,
       category,
       note: note || undefined,
       paid_by: paidBy,
@@ -55,9 +71,23 @@ export default function ExpenseForm({ onAdd }: Props) {
 
       <input
         type="number"
+        step="1"
+        min="1"
+        max="1000000000"
         placeholder="金額"
         value={amount}
-        onChange={(e) => setAmount(e.target.value)}
+        onChange={(e) => {
+          // 小数点入力を防ぐ（step="1"と組み合わせて）
+          const value = e.target.value;
+          // 空文字列は許可
+          if (value === "") {
+            setAmount("");
+            return;
+          }
+          // 小数点やカンマを除去（整数のみ許可）
+          const sanitized = value.replace(/[.,]/g, "");
+          setAmount(sanitized);
+        }}
         style={{ 
           width: "100%", 
           marginBottom: 12, 

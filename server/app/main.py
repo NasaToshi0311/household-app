@@ -13,15 +13,15 @@ from fastapi.staticfiles import StaticFiles
 
 app = FastAPI() # FastAPIのインスタンスを作成
 
-# CORS設定を環境変数から読み込む（デフォルト値あり）
+# CORS設定を環境変数から読み込む
 cors_origins_env = os.environ.get("CORS_ORIGINS", "")
 if cors_origins_env:
-    origins = [origin.strip() for origin in cors_origins_env.split(",")]
+    origins = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
 else:
     # デフォルト値（開発環境用 + 本番環境）
+    # 注意: 本番環境ではCORS_ORIGINS環境変数を設定することを推奨
     origins = [
         "https://household-app.vercel.app",
-        "http://10.76.108.202:5173",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]

@@ -41,6 +41,21 @@ export default function SummaryPage() {
 
   // ローカルデータから集計を計算
   const calculateLocalSummary = useCallback(async () => {
+    // 日付形式のバリデーション
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+    if (!datePattern.test(start) || !datePattern.test(end)) {
+      setError("日付の形式が正しくありません（YYYY-MM-DD形式で入力してください）");
+      return;
+    }
+
+    // 有効な日付かチェック
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      setError("無効な日付が入力されています");
+      return;
+    }
+
     // 日付範囲のバリデーション
     if (start > end) {
       setError("開始日は終了日より前である必要があります");

@@ -27,7 +27,7 @@ interface HouseholdDB extends DBSchema {
   expenses: {
     key: string;
     value: Expense;
-    indexes: { "by-status": string };
+    indexes: { "by-status": string; "by-date": string };
   };
   pending: {
     key: string;
@@ -39,7 +39,7 @@ interface HouseholdDB extends DBSchema {
   };
 }
 
-export const dbPromise = openDB<HouseholdDB>("household-db", 2, {
+export const dbPromise = openDB<HouseholdDB>("household-db", 3, {
   upgrade(db, oldVersion) {
     if (oldVersion < 2) {
       // version 1から2へのアップグレード
@@ -51,6 +51,18 @@ export const dbPromise = openDB<HouseholdDB>("household-db", 2, {
       // pendingストアは削除しない（安全のため残す）
       // metaストアを作成（migration状態の永続化用）
       db.createObjectStore("meta", { keyPath: "key" });
+    }
+    
+    if (oldVersion < 3) {
+      // version 2から3へのアップグレード
+      // 日付範囲クエリ用のインデックスを追加
+      const tx = db.transaction("expenses", "readwrite");
+      const expensesStore = tx.objectStore("expenses");
+      
+      // インデックスが存在しない場合のみ作成
+      if (!expensesStore.indexNames.contains("by-date")) {
+        expensesStore.createIndex("by-date", "date");
+      }
     }
   },
 }).then(async (db) => {
@@ -197,18 +209,23 @@ export async function markSynced(okUuids: string[]): Promise<void> {
 
 /**
  * 期間で絞り込んで支出を取得（op=="delete"は除外）
+ * IndexedDBの範囲クエリを使用して効率的に検索
  */
 export async function getExpensesByRange(
   from: string,
   to: string
 ): Promise<Expense[]> {
   const db = await dbPromise;
-  const all = await db.getAll("expenses");
+  const tx = db.transaction("expenses", "readonly");
+  const index = tx.store.index("by-date");
 
-  return all.filter((expense) => {
-    if (expense.op === "delete") return false;
-    return expense.date >= from && expense.date <= to;
-  });
+  // 日付範囲でクエリ（from <= date <= to）
+  // IDBKeyRange.bound(from, to, false, false) は [from, to] の範囲
+  const range = IDBKeyRange.bound(from, to, false, false);
+  const items = await index.getAll(range);
+
+  // op=="delete"のものを除外（範囲クエリでは日付での絞り込みのみ）
+  return items.filter((expense) => expense.op !== "delete");
 }
 
 /**

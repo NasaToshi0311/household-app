@@ -55,11 +55,16 @@ export default function ApiUrlBox({
       const normalized = data.base_url ? String(data.base_url).replace(/\/+$/, "") : "";
       const apiKey = data.api_key ? String(data.api_key) : "";
 
-      if (normalized) {
-        setApiBaseUrl(normalized);
-      }
-      if (apiKey) {
-        setApiKey(apiKey);
+      try {
+        if (normalized) {
+          setApiBaseUrl(normalized);
+        }
+        if (apiKey) {
+          setApiKey(apiKey);
+        }
+      } catch (e: any) {
+        setSyncUrlError(e?.message ?? "設定の保存に失敗しました");
+        return;
       }
 
       // QRセットアップ完了フラグを設定

@@ -6,9 +6,11 @@ export async function syncExpenses(items: Expense[]) {
   const saved = getApiBaseUrl().trim();
   if (!saved) throw new Error("同期先URLを入力してください");
 
-  let api: string;
+  let apiUrl: string;
   try {
-    api = new URL(saved).toString().replace(/\/+$/, "");
+    const url = new URL(saved);
+    // URLインスタンスから末尾のスラッシュを除去して文字列に変換
+    apiUrl = url.toString().replace(/\/+$/, "");
   } catch {
     throw new Error("同期先URLが不正です");
   }
@@ -38,7 +40,7 @@ export async function syncExpenses(items: Expense[]) {
   }));
 
   const res = await fetchWithTimeout(
-    `${api}/sync/expenses`,
+    `${apiUrl}/sync/expenses`,
     {
       method: "POST",
       headers,
