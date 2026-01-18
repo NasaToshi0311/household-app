@@ -60,7 +60,7 @@ export const dbPromise = openDB<HouseholdDB>("household-db", 3, {
       const expensesStore = tx.objectStore("expenses");
       
       // インデックスが存在しない場合のみ作成
-      if (!expensesStore.indexNames.contains("by-date")) {
+      if (expensesStore && !expensesStore.indexNames.contains("by-date")) {
         expensesStore.createIndex("by-date", "date");
       }
     }
