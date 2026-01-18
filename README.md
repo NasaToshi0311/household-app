@@ -74,7 +74,7 @@
   - QRコードは `http://[PCのIP]:8000/sync/page` で表示できます
   - QRコードを読み取ると、自動的にAPI URLとAPIキーが設定されます
   - QRコードには `sync_url` パラメータが含まれており、そこからAPI URLとAPIキーを取得します
-  - QRコードのURL形式: `https://household-app.vercel.app/sync-setup?sync_url={URL}`
+  - QRコードのURL形式: `https://household-app.vercel.app/sync-setup?sync_url={URL}`（`sync_url`には`http://[PCのIP]:8000/sync/url`が含まれる）
 - APIキー認証により、同一ネットワーク内でも不正アクセスを防止しています
 - DBデータはローカル環境のため、定期的にバックアップを取ることを推奨します（`backup_db.ps1` を使用）
 - PWAとしてホーム画面に追加すると、オフラインでも入力可能です

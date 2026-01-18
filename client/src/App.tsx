@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { upsertExpense, getPendingExpenses, hardDeleteExpense, markSynced } from "./db";
 import type { Expense, ExpenseInput } from "./db";
 import { useOnline } from "./hooks/useOnline";
-import { getApiBaseUrl, getApiKey } from "./config/api";
+import { getApiBaseUrl, getApiKey, isSetupViaQr } from "./config/api";
 import SummaryPage from "./pages/SummaryPage";
 import { syncExpenses } from "./api/expenses";
 import ApiUrlBox from "./components/ApiUrlBox";
@@ -11,9 +11,9 @@ import ExpenseForm from "./components/ExpenseForm";
 import ConfirmDialog from "./components/ConfirmDialog";
 import * as S from "./ui/styles.ts";
 
-
 export default function App() {
   const [items, setItems] = useState<Expense[]>([]);
+  const [, forceRender] = useState(0); // storage更新後の再レンダリング用
 
   const [tab, setTab] = useState<"input" | "summary">("input");
   const online = useOnline();
@@ -22,10 +22,12 @@ export default function App() {
     message: string;
     onConfirm: () => void;
   } | null>(null);
-  
-  const [configured, setConfigured] = useState(() => {
-    return !!getApiBaseUrl().trim() && !!getApiKey().trim();
-  });
+
+  // storageから毎回計算（stateで持たない）
+  const apiBaseUrl = getApiBaseUrl().trim();
+  const apiKey = getApiKey().trim();
+  const configured = !!apiBaseUrl && !!apiKey;
+  const authorized = configured && isSetupViaQr();
 
   const refresh = useCallback(async () => {
     setItems(await getPendingExpenses());
@@ -34,6 +36,11 @@ export default function App() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // ApiUrlBoxで設定が変わったら再レンダリング
+  const handleConfiguredChange = useCallback(() => {
+    forceRender((v) => v + 1);
+  }, []);
 
   async function sync() {
     if (syncing) return;
@@ -52,7 +59,13 @@ export default function App() {
     } catch (e: any) {
       if (e?.name === "AbortError" || e?.message?.includes("timeout")) {
         const apiUrl = getApiBaseUrl();
-        alert(`同期失敗: タイムアウト\n\n確認事項:\n1. PC側のサーバーが起動しているか\n2. PCとスマホが同じネットワークに接続されているか\n3. 同期先URLが正しいか（${apiUrl || "未設定"}）\n4. ファイアウォールがブロックしていないか`);
+        alert(
+          `同期失敗: タイムアウト\n\n確認事項:\n` +
+            `1. PC側のサーバーが起動しているか\n` +
+            `2. PCとスマホが同じネットワークに接続されているか\n` +
+            `3. 同期先URLが正しいか（${apiUrl || "未設定"}）\n` +
+            `4. ファイアウォールがブロックしていないか`
+        );
       } else {
         alert(e?.message ?? "同期失敗");
       }
@@ -67,7 +80,7 @@ export default function App() {
       style={{
         flex: 1,
         padding: "12px 20px",
-        borderRadius: tab === key ? "12px 12px 0 0" : "12px 12px 0 0",
+        borderRadius: "12px 12px 0 0",
         border: "none",
         borderTop: tab === key ? "3px solid #16a34a" : "3px solid transparent",
         borderLeft: tab === key ? "2px solid #e5e7eb" : "none",
@@ -77,127 +90,119 @@ export default function App() {
         fontWeight: tab === key ? 700 : 600,
         fontSize: 16,
         cursor: "pointer",
-        transition: "all 0.2s",
-        position: "relative",
-        zIndex: tab === key ? 10 : 1,
-        transform: tab === key ? "translateY(-2px)" : "translateY(0)",
-        boxShadow: tab === key ? "0 -2px 8px rgba(22, 163, 74, 0.1)" : "none",
-      }}
-      onMouseEnter={(e) => {
-        if (tab !== key) {
-          e.currentTarget.style.background = "#f3f4f6";
-          e.currentTarget.style.color = "#4b5563";
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (tab !== key) {
-          e.currentTarget.style.background = "#f9fafb";
-          e.currentTarget.style.color = "#6b7280";
-        }
       }}
     >
       {label}
     </button>
   );
 
-  if (!configured) {
+  // --- 権限なし画面 ---
+  if (!authorized) {
     return (
       <div style={S.page}>
         <h1 style={S.h1}>家計簿（スマホ）</h1>
         <div style={S.card}>
+          <div style={{ textAlign: "center", padding: "24px 16px" }}>
+            <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16, color: "#dc2626" }}>
+              権限がありません
+            </h2>
+            <p style={{ fontSize: 14, lineHeight: 1.6, color: "#4b5563", marginBottom: 8 }}>
+              この画面はQRセットアップを完了した端末のみ利用できます。
+            </p>
+            <p style={{ fontSize: 14, lineHeight: 1.6, color: "#6b7280", marginBottom: 16 }}>
+              PCで /sync/page を開いてQRコードから設定してください。
+            </p>
+          </div>
+
           <ApiUrlBox
             itemsCount={items.length}
             online={online}
             syncing={syncing}
             onSync={sync}
-            onConfiguredChange={(isConfigured) => {
-              setConfigured(isConfigured);
-            }}
+            onConfiguredChange={handleConfiguredChange}
           />
         </div>
       </div>
     );
   }
 
+  // --- 本画面 ---
   return (
     <div style={S.page}>
       <h1 style={S.h1}>家計簿（スマホ）</h1>
+
       <div style={S.card}>
         <ApiUrlBox
           itemsCount={items.length}
           online={online}
           syncing={syncing}
           onSync={sync}
-          onConfiguredChange={(isConfigured) => {
-            setConfigured(isConfigured);
-          }}
+          onConfiguredChange={handleConfiguredChange}
         />
       </div>
 
       <div style={{ marginTop: 16 }}>
-        <div style={{
-          display: "flex",
-          gap: 0,
-          background: "#ffffff",
-          borderRadius: "14px 14px 0 0",
-          padding: "4px 4px 0 4px",
-          borderTop: "2px solid #e5e7eb",
-          borderLeft: "2px solid #e5e7eb",
-          borderRight: "2px solid #e5e7eb",
-        }}>
+        <div
+          style={{
+            display: "flex",
+            background: "#ffffff",
+            borderRadius: "14px 14px 0 0",
+            padding: "4px 4px 0",
+            borderTop: "2px solid #e5e7eb",
+            borderLeft: "2px solid #e5e7eb",
+            borderRight: "2px solid #e5e7eb",
+          }}
+        >
           {tabBtn("input", "入力")}
           {tabBtn("summary", "集計")}
         </div>
       </div>
 
-      <div style={{ 
-        marginTop: 0,
-        background: "#ffffff",
-        borderRadius: "0 0 16px 16px",
-        border: "2px solid #e5e7eb",
-        borderTop: "none",
-        padding: "16px",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-        minHeight: "400px",
-      }}>
+      <div
+        style={{
+          background: "#ffffff",
+          borderRadius: "0 0 16px 16px",
+          border: "2px solid #e5e7eb",
+          borderTop: "none",
+          padding: "16px",
+          minHeight: "400px",
+        }}
+      >
         {tab === "summary" ? (
           <SummaryPage />
         ) : (
           <>
-            <div style={{ ...S.card, border: "none", boxShadow: "none", padding: 0 }}>
-              <ExpenseForm
-                onAdd={async (item) => {
-                  const input: ExpenseInput = {
-                    client_uuid: item.client_uuid,
-                    date: item.date,
-                    amount: item.amount,
-                    category: item.category,
-                    note: item.note,
-                    paid_by: item.paid_by,
-                  };
-                  await upsertExpense(input);
-                  await refresh();
-                }}
-              />
-            </div>
+            <ExpenseForm
+              onAdd={async (item) => {
+                const input: ExpenseInput = {
+                  client_uuid: item.client_uuid,
+                  date: item.date,
+                  amount: item.amount,
+                  category: item.category,
+                  note: item.note,
+                  paid_by: item.paid_by,
+                };
+                await upsertExpense(input);
+                await refresh();
+              }}
+            />
 
-            <hr style={{ margin: "20px 0", border: "none", borderTop: "1px solid #e5e7eb" }} />
-            <div style={{ ...S.card, border: "none", boxShadow: "none", padding: 0 }}>
-              <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12, color: "#1f2937" }}>未送信</h2>
-              <PendingList
-                items={items}
-                onDeleteOne={async (id) => {
-                  setConfirmDialog({
-                    message: "未送信データを削除しますか？",
-                    onConfirm: async () => {
-                      await hardDeleteExpense(id);
-                      await refresh();
-                      setConfirmDialog(null);
-                    },
-                  });
-                }}
-              />
-            </div>
+            <hr style={{ margin: "20px 0", borderTop: "1px solid #e5e7eb" }} />
+
+            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>未送信</h2>
+            <PendingList
+              items={items}
+              onDeleteOne={async (id) => {
+                setConfirmDialog({
+                  message: "未送信データを削除しますか？",
+                  onConfirm: async () => {
+                    await hardDeleteExpense(id);
+                    await refresh();
+                    setConfirmDialog(null);
+                  },
+                });
+              }}
+            />
           </>
         )}
       </div>

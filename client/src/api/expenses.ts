@@ -37,14 +37,6 @@ export async function syncExpenses(items: Expense[]) {
     op: item.op,
   }));
 
-  // デバッグ用: リクエスト情報をログ出力
-  console.log("同期リクエスト送信:", {
-    url: `${api}/sync/expenses`,
-    itemsCount: payloadItems.length,
-    hasApiKey: !!apiKey,
-    apiKeyLength: apiKey.length,
-  });
-
   const res = await fetchWithTimeout(
     `${api}/sync/expenses`,
     {

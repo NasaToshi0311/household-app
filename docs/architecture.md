@@ -215,8 +215,8 @@ SummaryPage コンポーネント
 
 - `GET /sync/qr.png`
   - QRコード画像生成
-  - QRコードには `https://household-app.vercel.app?qr_data={JSON}` 形式のURLが含まれる
-  - JSONデータには `base_url` と `api_key` が含まれる
+  - QRコードには `https://household-app.vercel.app/sync-setup?sync_url={URL}` 形式のURLが含まれる
+  - `sync_url` パラメータには `http://[PCのIP]:8000/sync/url` が含まれる（URLエンコード済み）
   - 認証不要（PUBLIC_PATHS）
 
 - `GET /sync/page`
@@ -294,12 +294,12 @@ SummaryPage コンポーネント
 
 1. **QRコード生成**（サーバー側）
    - `GET /sync/qr.png` でQRコード画像を生成
-   - QRコードには `https://household-app.vercel.app?sync_url={URL}` 形式のURLが含まれる
-   - `sync_url` パラメータには `http://[PCのIP]:8000/sync/url` が含まれる
+   - QRコードには `https://household-app.vercel.app/sync-setup?sync_url={URL}` 形式のURLが含まれる
+   - `sync_url` パラメータには `http://[PCのIP]:8000/sync/url` が含まれる（URLエンコード済み）
 
 2. **QRコード読み取り**（クライアント側）
    - スマホのカメラでQRコードを読み取る
-   - URLパラメータ `sync_url` から `/sync/url` エンドポイントのURLを取得
+   - URLパラメータ `sync_url` から `/sync/url` エンドポイントのURLを取得（デコード処理）
    - そのURLにアクセスして `base_url` と `api_key` を取得
    - `base_url` と `api_key` をlocalStorageに保存
    - 自動的に同期設定が完了

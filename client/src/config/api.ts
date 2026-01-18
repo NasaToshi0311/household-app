@@ -1,5 +1,6 @@
 const LS_KEY = "household_api_base_url";
 const LS_API_KEY = "household_api_key";
+const LS_SETUP_VIA_QR = "setup_via_qr";
 
 export function getApiBaseUrl(): string {
   // envのデフォルト（任意）
@@ -20,4 +21,19 @@ export function getApiKey(): string {
 
 export function setApiKey(key: string) {
   localStorage.setItem(LS_API_KEY, key);
+}
+
+export function setSetupViaQr(value: boolean) {
+  localStorage.setItem(LS_SETUP_VIA_QR, value ? "1" : "0");
+}
+
+export function isSetupViaQr(): boolean {
+  const saved = localStorage.getItem(LS_SETUP_VIA_QR);
+  return saved === "1";
+}
+
+export function clearSetup() {
+  localStorage.removeItem(LS_KEY);
+  localStorage.removeItem(LS_API_KEY);
+  localStorage.removeItem(LS_SETUP_VIA_QR);
 }

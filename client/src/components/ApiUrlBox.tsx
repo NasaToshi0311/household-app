@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { getApiBaseUrl, setApiBaseUrl, setApiKey, getApiKey } from "../config/api";
+import { getApiBaseUrl, setApiBaseUrl, setApiKey, getApiKey, setSetupViaQr, clearSetup } from "../config/api";
 import * as S from "../ui/styles";
 
 type Props = {
@@ -7,7 +7,7 @@ type Props = {
   online: boolean;
   syncing: boolean;
   onSync: () => void;
-  onConfiguredChange?: (isConfigured: boolean) => void;
+  onConfiguredChange?: () => void;
 };
 
 export default function ApiUrlBox({
@@ -26,10 +26,15 @@ export default function ApiUrlBox({
     onConfiguredChangeRef.current = onConfiguredChange;
   }, [onConfiguredChange]);
 
-  function notifyConfigured(url?: string, key?: string) {
-    const apiUrl = (url ?? getApiBaseUrl()).trim();
-    const apiKey = (key ?? getApiKey()).trim();
-    onConfiguredChangeRef.current?.(!!apiUrl && !!apiKey);
+  function notifyConfigured() {
+    onConfiguredChangeRef.current?.();
+  }
+
+  function handleReset() {
+    if (confirm("設定をリセットしますか？この操作は取り消せません。")) {
+      clearSetup();
+      notifyConfigured();
+    }
   }
 
   function removeUrlParams(paramsToRemove: string[]) {
@@ -57,7 +62,12 @@ export default function ApiUrlBox({
         setApiKey(apiKey);
       }
 
-      notifyConfigured(normalized, apiKey);
+      // QRセットアップ完了フラグを設定
+      if (normalized && apiKey) {
+        setSetupViaQr(true);
+      }
+
+      notifyConfigured();
 
       removeUrlParams(["sync_url"]);
       setSyncUrlParamState(null);
@@ -123,6 +133,23 @@ export default function ApiUrlBox({
             </button>
           )}
         </div>
+      )}
+
+      {configured && (
+        <button
+          onClick={handleReset}
+          style={{
+            ...S.btn,
+            width: "100%",
+            marginTop: 12,
+            fontSize: 13,
+            background: "#fee2e2",
+            color: "#dc2626",
+            border: "1px solid #fca5a5",
+          }}
+        >
+          ⚠️ 設定をリセット
+        </button>
       )}
     </div>
   );

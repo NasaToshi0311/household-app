@@ -54,9 +54,9 @@ IPアドレスを確認（例: `192.168.1.100`）
 3. 自動的にAPI URLとAPIキーが設定されます
 
 **QRコードの仕組み**:
-- QRコードには、`sync_url` パラメータが含まれています（`https://household-app.vercel.app?sync_url={URL}` 形式）
-- `sync_url` には `http://[PCのIP]:8000/sync/url` が含まれています
-- スマホでQRコードを読み取ると、アプリが自動的に `sync_url` にアクセスして `base_url` と `api_key` を取得し、設定します
+- QRコードには、`sync_url` パラメータが含まれています（`https://household-app.vercel.app/sync-setup?sync_url={URL}` 形式）
+- `sync_url` には `http://[PCのIP]:8000/sync/url` が含まれています（URLエンコード済み）
+- スマホでQRコードを読み取ると、アプリが自動的に `sync_url` パラメータをデコードしてそのURLにアクセスし、`base_url` と `api_key` を取得して設定します
 
 #### 方法2: 手動設定
 

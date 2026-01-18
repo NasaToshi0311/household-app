@@ -99,8 +99,8 @@ client/
 
 - QRコードを読み取ってAPI URLとAPIキーを自動設定
   - QRコードは `http://[PCのIP]:8000/sync/page` で表示
-  - QRコードには `sync_url` パラメータが含まれる（`https://household-app.vercel.app/sync-setup?sync_url={URL}` 形式）
-  - `sync_url` にアクセスして `base_url` と `api_key` を取得し、自動的にlocalStorageに保存される
+  - QRコードには `sync_url` パラメータが含まれる（`https://household-app.vercel.app/sync-setup?sync_url={URL}` 形式、`sync_url`はURLエンコード済み）
+  - `sync_url` パラメータをデコードしてそのURL（`http://[PCのIP]:8000/sync/url`）にアクセスし、`base_url` と `api_key` を取得して自動的にlocalStorageに保存される
 - 手動入力も可能（API URLのみ、APIキーはQRコードから取得推奨）
 
 ## IndexedDB構造
