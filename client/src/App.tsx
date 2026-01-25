@@ -53,8 +53,9 @@ export default function App() {
 
   /**
    * サーバーから直近2か月のデータを取得して保存
+   * @param syncResult 未送信データの送信結果（オプション）
    */
-  async function fetchAndSaveRecentData() {
+  async function fetchAndSaveRecentData(syncResult?: { ok_uuids: string[]; ng_uuids: string[] }) {
     try {
       const serverItems = await fetchRecentExpenses(2);
       await saveExpensesFromServer(serverItems);
@@ -65,8 +66,28 @@ export default function App() {
       
       await refresh();
       
-      const deletedMsg = deletedCount > 0 ? `\n古いデータを削除しました（${deletedCount}件）` : "";
-      alert(`直近2か月のデータを取得しました（${serverItems.length}件）${deletedMsg}`);
+      // 完了メッセージを構築
+      let message = "同期が完了しました\n\n";
+      
+      // 未送信データの送信結果がある場合は表示
+      if (syncResult) {
+        if (syncResult.ng_uuids.length > 0) {
+          message += `送信結果: 成功 ${syncResult.ok_uuids.length}件 / 失敗 ${syncResult.ng_uuids.length}件\n`;
+        } else {
+          message += `送信結果: 成功 ${syncResult.ok_uuids.length}件\n`;
+        }
+      }
+      
+      message += `取得データ: ${serverItems.length}件`;
+      
+      const deletedMsg = deletedCount > 0 ? `\n古いデータを削除: ${deletedCount}件` : "";
+      message += deletedMsg;
+      
+      const latest = await getPendingExpenses();
+      const pendingMsg = latest.length > 0 ? `\n未送信: ${latest.length}件` : "";
+      message += pendingMsg;
+      
+      alert(message);
     } catch (fetchError: any) {
       // データ取得に失敗しても、送信は成功しているので警告のみ
       console.error("Failed to fetch recent expenses:", fetchError);
@@ -80,19 +101,21 @@ export default function App() {
 
     try {
       const latest = await getPendingExpenses();
+      let syncResult: { ok_uuids: string[]; ng_uuids: string[] } | undefined;
+      
       if (latest.length === 0) {
         // 未送信がなくても、サーバーから直近2か月のデータを取得
-        alert("未送信がありません。サーバーから直近2か月のデータを取得します...");
+        // 処理完了時にメッセージを表示するため、ここでは何も表示しない
       } else {
         // 未送信データを送信
-        const result = await syncExpenses(latest);
-        await markSynced(result.ok_uuids);
+        syncResult = await syncExpenses(latest);
+        await markSynced(syncResult.ok_uuids);
         await refresh();
-        alert(`同期完了（成功 ${result.ok_uuids.length} / 失敗 ${result.ng_uuids.length}）\n\nサーバーから直近2か月のデータを取得します...`);
       }
 
       // サーバーから直近2か月のデータを取得して保存
-      await fetchAndSaveRecentData();
+      // 完了時にメッセージを表示（送信結果も含む）
+      await fetchAndSaveRecentData(syncResult);
     } catch (e: any) {
       if (e?.name === "AbortError" || e?.message?.includes("timeout")) {
         const apiUrl = getApiBaseUrl();

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { payerLabel } from "../constants/payer";
 import { sortCategoriesByOrder } from "../constants/category";
-import { getExpensesByRange, getPendingCount, markDeleteExpense, type Expense } from "../db";
+import { getExpensesByRange, markDeleteExpense, type Expense } from "../db";
 import { formatDate, startOfMonth, endOfMonth } from "../utils/date";
 
 type Summary = { start: string; end: string; total: number };
@@ -23,7 +23,6 @@ export default function SummaryPage() {
   const [byPayer, setByPayer] = useState<ByPayer[]>([]);
   const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [pendingCount, setPendingCount] = useState<number>(0);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
   const [filterPayer, setFilterPayer] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -60,7 +59,6 @@ export default function SummaryPage() {
     try {
       // IndexedDBから期間で絞り込んだデータを取得
       const filtered = await getExpensesByRange(start, end);
-      const pending = await getPendingCount();
 
       const total = filtered.reduce((sum, item) => sum + item.amount, 0);
 
@@ -92,7 +90,6 @@ export default function SummaryPage() {
       setByCategory(byCategory);
       setByPayer(byPayer);
       setAllExpenses(expensesList);
-      setPendingCount(pending);
     } catch (err: any) {
       setError(err?.message ?? "エラー");
     } finally {
@@ -201,25 +198,6 @@ export default function SummaryPage() {
   return (
     <div style={{ maxWidth: 520, margin: "0 auto", padding: 8, fontFamily: "system-ui" }}>
       <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 16, color: "#1f2937" }}>集計</h2>
-
-      <div
-        style={{
-          background: "#eff6ff",
-          border: "2px solid #93c5fd",
-          padding: 14,
-          borderRadius: 12,
-          marginBottom: 16,
-          color: "#1e40af",
-          fontWeight: 500,
-        }}
-      >
-        ローカル集計（未同期含む）
-        {pendingCount > 0 && (
-          <div style={{ marginTop: 8, fontSize: 14, fontWeight: 600 }}>
-            未同期件数: {pendingCount}件
-          </div>
-        )}
-      </div>
 
       <div
         style={{
