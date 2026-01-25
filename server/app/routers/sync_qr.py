@@ -58,8 +58,8 @@ def sync_qr_png():
     sync_url = f"{base_url}/sync/url"
 
     # 設定画面へ飛ばす（←ここがポイント）
-    app_url = "https://household-app.vercel.app/sync-setup"
-    qr_url = f"{app_url}?sync_url={quote(sync_url)}"
+    app_url = "https://household-app.vercel.app"
+    qr_url = f"{app_url}/?sync_url={quote(sync_url)}"
 
     img = qrcode.make(qr_url)
     buf = BytesIO()
