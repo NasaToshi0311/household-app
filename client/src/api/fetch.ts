@@ -18,6 +18,12 @@ export async function fetchWithTimeout(
         abortError.name = "AbortError";
         throw abortError;
       }
+      // iOS Safariの「load failed」エラーを適切に処理
+      if (error.message?.includes("load failed") || error.message?.includes("Failed to fetch")) {
+        const networkError = new Error("ネットワークエラー: サーバーに接続できませんでした");
+        networkError.name = "NetworkError";
+        throw networkError;
+      }
       throw error;
     }
   }

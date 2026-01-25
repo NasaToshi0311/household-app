@@ -102,8 +102,24 @@ export default function App() {
       alert(message);
     } catch (fetchError: any) {
       // データ取得に失敗しても、送信は成功しているので警告のみ
-      console.error("Failed to fetch recent expenses:", fetchError);
-      alert(`警告: サーバーからデータを取得できませんでした\n${fetchError?.message ?? ""}`);
+      const apiUrl = getApiBaseUrl();
+      let errorMessage = "警告: サーバーからデータを取得できませんでした\n\n";
+      
+      if (fetchError?.name === "AbortError" || fetchError?.message?.includes("timeout")) {
+        errorMessage += "タイムアウトが発生しました。\n";
+      } else if (fetchError?.message?.includes("Failed to fetch") || fetchError?.message?.includes("load failed")) {
+        errorMessage += "ネットワークエラーが発生しました。\n";
+      } else {
+        errorMessage += `エラー: ${fetchError?.message ?? "不明なエラー"}\n`;
+      }
+      
+      errorMessage += `\n確認事項:\n`;
+      errorMessage += `1. PC側のサーバーが起動しているか\n`;
+      errorMessage += `2. PCとスマホが同じWi-Fiに接続されているか\n`;
+      errorMessage += `3. 同期先URL: ${apiUrl || "未設定"}\n`;
+      errorMessage += `4. ファイアウォールがブロックしていないか`;
+      
+      alert(errorMessage);
     }
   }
 
