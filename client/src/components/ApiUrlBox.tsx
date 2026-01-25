@@ -21,6 +21,7 @@ export default function ApiUrlBox({
 }: Props) {
   const [syncUrlError, setSyncUrlError] = useState<string | null>(null);
   const [syncUrlParamState, setSyncUrlParamState] = useState<string | null>(null);
+  const [syncUrlSuccess, setSyncUrlSuccess] = useState<string | null>(null);
 
   const onConfiguredChangeRef = useRef(onConfiguredChange);
 
@@ -73,20 +74,48 @@ export default function ApiUrlBox({
       // QRセットアップ完了フラグを設定
       if (normalized && apiKey) {
         console.log("[ApiUrlBox] Setting setup_via_qr to true");
-        setSetupViaQr(true);
-        // localStorageの更新を確実に反映させるため、少し待ってから通知
-        setTimeout(() => {
-          console.log("[ApiUrlBox] Notifying configured change");
-          notifyConfigured();
-        }, 200);
+        try {
+          setSetupViaQr(true);
+          // localStorageの値を確認
+          const saved = localStorage.getItem("setup_via_qr");
+          console.log("[ApiUrlBox] setup_via_qr saved value:", saved);
+          
+          if (saved !== "1") {
+            console.error("[ApiUrlBox] setup_via_qr was not saved correctly!");
+            setSyncUrlError("設定の保存に失敗しました。もう一度お試しください。");
+            return;
+          }
+          
+          setSyncUrlSuccess("設定が完了しました！ページをリロードします...");
+          setSyncUrlError(null);
+          
+          // localStorageの更新を確実に反映させるため、少し待ってから通知
+          setTimeout(() => {
+            console.log("[ApiUrlBox] Notifying configured change");
+            notifyConfigured();
+            // さらに確実に再レンダリングをトリガー
+            setTimeout(() => {
+              notifyConfigured();
+              // 最終的にページをリロードして確実に反映
+              setTimeout(() => {
+                console.log("[ApiUrlBox] Reloading page to ensure changes are applied");
+                window.location.reload();
+              }, 500);
+            }, 200);
+          }, 300);
+        } catch (e: any) {
+          console.error("[ApiUrlBox] setSetupViaQr failed:", e);
+          setSyncUrlError(e?.message ?? "設定の保存に失敗しました");
+          return;
+        }
       } else {
         console.warn("[ApiUrlBox] normalized or apiKey is empty, not setting setup_via_qr");
+        setSyncUrlError(`設定に失敗しました。normalized: ${normalized ? "✓" : "✗"}, apiKey: ${apiKey ? "✓" : "✗"}`);
         notifyConfigured();
       }
 
       removeUrlParams(["sync_url"]);
       setSyncUrlParamState(null);
-      setSyncUrlError(null);
     } catch (error: any) {
       console.error("[ApiUrlBox] fetchSyncUrl exception:", error);
       setSyncUrlError("PCと同じWi-Fiに接続されているか確認してください");
@@ -146,12 +175,28 @@ export default function ApiUrlBox({
 
       {isOpen && (
         <>
+          {syncUrlSuccess && (
+            <div style={{ 
+              marginTop: 12, 
+              padding: 12, 
+              background: "#d1fae5", 
+              borderRadius: 8,
+              border: "1px solid #10b981",
+              color: "#065f46"
+            }}>
+              ✓ {syncUrlSuccess}
+            </div>
+          )}
           {syncUrlError && (
             <div style={{ ...S.warningBox, marginTop: 12 }}>
               ⚠ {syncUrlError}
               {syncUrlParamState && (
                 <button
-                  onClick={() => fetchSyncUrl(syncUrlParamState)}
+                  onClick={() => {
+                    setSyncUrlSuccess(null);
+                    setSyncUrlError(null);
+                    fetchSyncUrl(syncUrlParamState);
+                  }}
                   style={{ ...S.btnPrimary, width: "100%", marginTop: 8, fontSize: 13 }}
                 >
                   🔄 再試行
