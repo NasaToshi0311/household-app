@@ -98,14 +98,21 @@ export default function ApiUrlBox({
     const raw = params.get("sync_url");
     const syncUrlParam = raw ? decodeURIComponent(raw) : null;
 
+    console.log("[ApiUrlBox] useEffect - sync_url param:", syncUrlParam ? "found" : "not found");
+    if (syncUrlParam) {
+      console.log("[ApiUrlBox] sync_url value:", syncUrlParam);
+    }
+
     // QRから来たときは最優先で自動設定
     if (syncUrlParam) {
+      console.log("[ApiUrlBox] Calling fetchSyncUrl with sync_url param");
       setSyncUrlParamState(syncUrlParam);
       fetchSyncUrl(syncUrlParam);
       return;
     }
 
     // 既存設定の反映
+    console.log("[ApiUrlBox] No sync_url param, using existing config");
     notifyConfigured();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -137,18 +144,56 @@ export default function ApiUrlBox({
           : "同期する"}
       </button>
 
-      {isOpen && syncUrlError && (
-        <div style={{ ...S.warningBox, marginTop: 12 }}>
-          ⚠ {syncUrlError}
-          {syncUrlParamState && (
-            <button
-              onClick={() => fetchSyncUrl(syncUrlParamState)}
-              style={{ ...S.btnPrimary, width: "100%", marginTop: 8, fontSize: 13 }}
-            >
-              🔄 再試行
-            </button>
+      {isOpen && (
+        <>
+          {syncUrlError && (
+            <div style={{ ...S.warningBox, marginTop: 12 }}>
+              ⚠ {syncUrlError}
+              {syncUrlParamState && (
+                <button
+                  onClick={() => fetchSyncUrl(syncUrlParamState)}
+                  style={{ ...S.btnPrimary, width: "100%", marginTop: 8, fontSize: 13 }}
+                >
+                  🔄 再試行
+                </button>
+              )}
+            </div>
           )}
-        </div>
+          
+          {!configured && (
+            <div style={{ marginTop: 12, padding: 12, background: "#f3f4f6", borderRadius: 8 }}>
+              <div style={{ fontSize: 13, color: "#4b5563", marginBottom: 8 }}>
+                QRコードをスキャンして設定してください
+              </div>
+              <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 8 }}>
+                現在のURL: {window.location.href}
+              </div>
+              {(() => {
+                const params = new URLSearchParams(window.location.search);
+                const syncUrl = params.get("sync_url");
+                return syncUrl ? (
+                  <div style={{ fontSize: 12, color: "#059669", marginBottom: 8 }}>
+                    ✓ sync_url パラメータが見つかりました
+                    <button
+                      onClick={() => {
+                        const decoded = decodeURIComponent(syncUrl);
+                        setSyncUrlParamState(decoded);
+                        fetchSyncUrl(decoded);
+                      }}
+                      style={{ ...S.btnPrimary, width: "100%", marginTop: 8, fontSize: 13 }}
+                    >
+                      🔄 設定を実行
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: "#dc2626" }}>
+                    ✗ sync_url パラメータが見つかりません。QRコードを再スキャンしてください。
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
