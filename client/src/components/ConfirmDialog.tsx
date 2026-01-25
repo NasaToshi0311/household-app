@@ -17,10 +17,12 @@ export default function ConfirmDialog({ message, onConfirm, onCancel }: Props) {
           bottom: 0,
           background: "rgba(0, 0, 0, 0.5)",
           display: "flex",
-          alignItems: "center",
+          alignItems: "flex-start",
           justifyContent: "center",
           zIndex: 1000,
           padding: 16,
+          paddingTop: "max(16px, env(safe-area-inset-top))",
+          overflowY: "auto",
           /* iOS Safariの100vh問題を回避 */
           minHeight: "-webkit-fill-available" as any,
         } as React.CSSProperties}
@@ -33,6 +35,7 @@ export default function ConfirmDialog({ message, onConfirm, onCancel }: Props) {
             padding: 24,
             maxWidth: 400,
             width: "100%",
+            marginTop: "max(20px, 5vh)",
             boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
             boxSizing: "border-box",
           }}
