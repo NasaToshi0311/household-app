@@ -218,7 +218,7 @@ SummaryPage コンポーネント
 
 - `GET /sync/qr.png`
   - QRコード画像生成
-  - QRコードには `https://household-app.vercel.app/sync-setup?sync_url={URL}` 形式のURLが含まれる
+  - QRコードには `https://household-app.vercel.app/?sync_url={URL}` 形式のURLが含まれる
   - `sync_url` パラメータには `http://[PCのIP]:8000/sync/url` が含まれる（URLエンコード済み）
   - 認証不要（PUBLIC_PATHS）
 
@@ -297,7 +297,7 @@ SummaryPage コンポーネント
 
 1. **QRコード生成**（サーバー側）
    - `GET /sync/qr.png` でQRコード画像を生成
-   - QRコードには `https://household-app.vercel.app/sync-setup?sync_url={URL}` 形式のURLが含まれる
+   - QRコードには `https://household-app.vercel.app/?sync_url={URL}` 形式のURLが含まれる
    - `sync_url` パラメータには `http://[PCのIP]:8000/sync/url` が含まれる（URLエンコード済み）
 
 2. **QRコード読み取り**（クライアント側）

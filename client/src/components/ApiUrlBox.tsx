@@ -65,9 +65,13 @@ export default function ApiUrlBox({
       // QRセットアップ完了フラグを設定
       if (normalized && apiKey) {
         setSetupViaQr(true);
+        // localStorageの更新を確実に反映させるため、少し待ってから通知
+        setTimeout(() => {
+          notifyConfigured();
+        }, 100);
+      } else {
+        notifyConfigured();
       }
-
-      notifyConfigured();
 
       removeUrlParams(["sync_url"]);
       setSyncUrlParamState(null);
