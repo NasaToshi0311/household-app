@@ -88,15 +88,18 @@ export default function ExpenseForm({ onAdd }: Props) {
           const sanitized = value.replace(/[.,]/g, "");
           setAmount(sanitized);
         }}
+        inputMode="numeric"
         style={{ 
           width: "100%", 
           marginBottom: 12, 
           padding: 14, 
           borderRadius: 12, 
           border: "2px solid #e5e7eb",
-          fontSize: 16,
+          fontSize: 16, /* iOS Safariで自動ズームを防ぐため16px以上 */
           color: "#1f2937",
           transition: "border-color 0.2s",
+          WebkitAppearance: "none",
+          appearance: "none",
         }}
       />
 
@@ -128,15 +131,18 @@ export default function ExpenseForm({ onAdd }: Props) {
         placeholder="メモ（任意）"
         value={note}
         onChange={(e) => setNote(e.target.value)}
+        maxLength={200}
         style={{ 
           width: "100%", 
           marginBottom: 12, 
           padding: 14, 
           borderRadius: 12, 
           border: "2px solid #e5e7eb",
-          fontSize: 15,
+          fontSize: 16, /* iOS Safariで自動ズームを防ぐため16px以上 */
           color: "#1f2937",
           transition: "border-color 0.2s",
+          WebkitAppearance: "none",
+          appearance: "none",
         }}
       />
 
@@ -175,6 +181,10 @@ export default function ExpenseForm({ onAdd }: Props) {
           cursor: "pointer",
           boxShadow: "0 2px 8px rgba(22, 163, 74, 0.3)",
           transition: "all 0.2s",
+          WebkitTapHighlightColor: "rgba(0, 0, 0, 0.1)",
+          touchAction: "manipulation",
+          WebkitUserSelect: "none",
+          userSelect: "none",
         }}
         onMouseOver={(e) => {
           e.currentTarget.style.transform = "translateY(-1px)";
@@ -185,6 +195,14 @@ export default function ExpenseForm({ onAdd }: Props) {
           e.currentTarget.style.transform = "translateY(0)";
           e.currentTarget.style.boxShadow = "0 2px 8px rgba(22, 163, 74, 0.3)";
           e.currentTarget.style.background = "#16a34a";
+        }}
+        onTouchStart={(e) => {
+          e.currentTarget.style.transform = "scale(0.98)";
+          e.currentTarget.style.opacity = "0.9";
+        }}
+        onTouchEnd={(e) => {
+          e.currentTarget.style.transform = "scale(1)";
+          e.currentTarget.style.opacity = "1";
         }}
       >
         追加

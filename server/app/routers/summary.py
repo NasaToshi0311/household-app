@@ -28,6 +28,7 @@ class PayerSummaryItem(BaseModel):
 
 class ExpenseItem(BaseModel):
     id: Optional[int] = None
+    client_uuid: Optional[str] = None
     date: date
     amount: int
     category: str
@@ -112,7 +113,7 @@ def list_expenses(
         raise HTTPException(status_code=400, detail="Start date must be less than or equal to end date")
     
     sql = text("""
-        SELECT id, date, amount, category, note, paid_by
+        SELECT id, client_uuid, date, amount, category, note, paid_by
         FROM expenses
         WHERE date >= :start AND date <= :end
         AND deleted_at IS NULL
@@ -128,6 +129,7 @@ def list_expenses(
     return [
         ExpenseItem(
             id=r.id,
+            client_uuid=r.client_uuid,
             date=r.date,
             amount=int(r.amount),
             category=r.category,

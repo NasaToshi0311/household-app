@@ -223,3 +223,84 @@ export async function getPendingCount(): Promise<number> {
   const index = db.transaction("expenses").store.index("by-status");
   return index.count("pending");
 }
+
+/**
+ * サーバーから取得したデータをIndexedDBに保存（upsert）
+ * client_uuidが存在する場合は既存データを更新、存在しない場合は新規追加
+ */
+export async function saveExpensesFromServer(
+  serverItems: Array<{
+    id?: number;
+    client_uuid?: string;
+    date: string;
+    amount: number;
+    category: string;
+    note?: string | null;
+    paid_by?: string | null;
+  }>
+): Promise<void> {
+  if (serverItems.length === 0) return;
+
+  const db = await dbPromise;
+  const tx = db.transaction("expenses", "readwrite");
+  const store = tx.store;
+  const now = new Date().toISOString();
+
+  for (const item of serverItems) {
+    // client_uuidが必須（サーバーから取得したデータには必ず含まれる）
+    if (!item.client_uuid) {
+      console.warn("Skipping item without client_uuid:", item);
+      continue;
+    }
+
+    // 既存データを確認
+    const existing = await store.get(item.client_uuid);
+
+    // 既存データがpending状態の場合は上書きしない（ローカルで未送信のデータを保護）
+    if (existing && existing.status === "pending") {
+      continue;
+    }
+
+    // サーバーから取得したデータを保存
+    const expense: Expense = {
+      client_uuid: item.client_uuid,
+      date: item.date,
+      amount: item.amount,
+      category: item.category,
+      note: item.note || undefined,
+      paid_by: (item.paid_by === "me" || item.paid_by === "her") ? item.paid_by : "me",
+      op: "upsert",
+      status: "synced", // サーバーから取得したデータは既に同期済み
+      updated_at: now,
+    };
+
+    await store.put(expense);
+  }
+
+  await tx.done;
+}
+
+/**
+ * 指定日より古いデータを削除（2か月より古いデータをクリーンアップ）
+ */
+export async function deleteOldExpenses(olderThanDate: string): Promise<number> {
+  const db = await dbPromise;
+  const tx = db.transaction("expenses", "readwrite");
+  const index = tx.store.index("by-date");
+  const range = IDBKeyRange.upperBound(olderThanDate, true); // olderThanDateより前（olderThanDateを含まない）
+
+  const oldItems = await index.getAll(range);
+  let deletedCount = 0;
+
+  for (const item of oldItems) {
+    // pending状態のデータは削除しない（未送信データを保護）
+    if (item.status === "pending") {
+      continue;
+    }
+    await tx.store.delete(item.client_uuid);
+    deletedCount++;
+  }
+
+  await tx.done;
+  return deletedCount;
+}

@@ -6,7 +6,11 @@ export const page: React.CSSProperties = {
   margin: "0 auto",
   fontFamily: "system-ui",
   background: "#f7f5f2",
+  /* iOS Safariの100vh問題を回避 */
   minHeight: "100vh",
+  minHeight: "-webkit-fill-available" as any,
+  width: "100%",
+  boxSizing: "border-box",
 };
 
 export const h1: React.CSSProperties = {
@@ -38,9 +42,12 @@ export const input: React.CSSProperties = {
   border: "2px solid #e5e7eb",
   background: "#fff",
   outline: "none",
-  fontSize: 15,
+  fontSize: 16, /* iOS Safariで自動ズームを防ぐため16px以上 */
   color: "#1f2937",
   transition: "border-color 0.2s",
+  WebkitAppearance: "none",
+  appearance: "none",
+  boxSizing: "border-box",
 };
 
 export const row: React.CSSProperties = {
@@ -59,6 +66,10 @@ export const btn: React.CSSProperties = {
   fontWeight: 600,
   transition: "all 0.2s",
   color: "#1f2937",
+  WebkitTapHighlightColor: "rgba(0, 0, 0, 0.1)",
+  touchAction: "manipulation",
+  WebkitUserSelect: "none",
+  userSelect: "none",
 };
 
 export const btnPrimary: React.CSSProperties = {
@@ -68,6 +79,7 @@ export const btnPrimary: React.CSSProperties = {
   color: "#ffffff",
   fontWeight: 700,
   boxShadow: "0 2px 8px rgba(22, 163, 74, 0.3)",
+  WebkitTapHighlightColor: "rgba(255, 255, 255, 0.2)",
 };
 
 export const btnDanger: React.CSSProperties = {
@@ -76,6 +88,7 @@ export const btnDanger: React.CSSProperties = {
   background: "#fee2e2",
   color: "#dc2626",
   fontWeight: 600,
+  WebkitTapHighlightColor: "rgba(220, 38, 38, 0.1)",
 };
 
 export const btnSuccess: React.CSSProperties = {

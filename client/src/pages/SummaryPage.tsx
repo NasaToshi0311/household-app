@@ -244,9 +244,11 @@ export default function SummaryPage() {
               padding: 12,
               borderRadius: 12,
               border: "2px solid #e5e7eb",
-              fontSize: 15,
+              fontSize: 16, /* iOS Safariで自動ズームを防ぐため16px以上 */
               color: "#1f2937",
               transition: "border-color 0.2s",
+              WebkitAppearance: "none",
+              appearance: "none",
             }}
           />
         </div>
@@ -261,9 +263,11 @@ export default function SummaryPage() {
               padding: 12,
               borderRadius: 12,
               border: "2px solid #e5e7eb",
-              fontSize: 15,
+              fontSize: 16, /* iOS Safariで自動ズームを防ぐため16px以上 */
               color: "#1f2937",
               transition: "border-color 0.2s",
+              WebkitAppearance: "none",
+              appearance: "none",
             }}
           />
         </div>
@@ -594,4 +598,8 @@ const btnStyle: React.CSSProperties = {
   fontWeight: 600,
   color: "#1f2937",
   transition: "all 0.2s",
+  WebkitTapHighlightColor: "rgba(0, 0, 0, 0.1)",
+  touchAction: "manipulation",
+  WebkitUserSelect: "none",
+  userSelect: "none",
 };

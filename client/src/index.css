@@ -5,6 +5,9 @@ html, body {
   min-height: 100%;
   background: #f7f5f2;
   overflow-x: hidden;
+  /* iOS Safariの100vh問題を回避 */
+  height: 100%;
+  height: -webkit-fill-available;
 }
 
 /* Vite初期の body:flex 中央寄せを無効化 */
@@ -12,11 +15,19 @@ body {
   display: block;
   place-items: initial;
   min-width: 0;
+  /* iOS Safariの100vh問題を回避 */
   min-height: 100vh;
+  min-height: -webkit-fill-available;
+  /* iOS Safariのスクロールバウンスを無効化（オプション） */
+  overscroll-behavior-y: none;
+  /* スクロールの滑らかさを改善 */
+  -webkit-overflow-scrolling: touch;
 }
 
 #root {
+  /* iOS Safariの100vh問題を回避 */
   min-height: 100vh;
+  min-height: -webkit-fill-available;
   background: #f7f5f2;
 }
 
@@ -35,12 +46,39 @@ body {
 button, a {
   -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
   touch-action: manipulation; /* ダブルタップズームを無効化、タッチレスポンスを改善 */
+  /* タッチ時のフィードバックを改善 */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 入力フィールドのタッチ最適化 */
+input, select, textarea {
+  touch-action: manipulation;
+  /* iOS Safariでフォーカス時の自動ズームを防ぐ（16px以上で自動的に防げるが念のため） */
+  font-size: 16px;
 }
 
 /* フォントレンダリング最適化（iOS/Android共通） */
 body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* テキストの選択を改善 */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* iOS Safari用の追加最適化 */
+@supports (-webkit-touch-callout: none) {
+  /* iOS Safari専用のスタイル */
+  body {
+    /* スクロールの滑らかさを改善 */
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* iOS Safariの100vh問題を回避 */
+  #root {
+    min-height: -webkit-fill-available;
+  }
 }
 
 /* Android Chrome用の追加最適化 */
@@ -50,4 +88,16 @@ body {
     -webkit-transform: translateZ(0); /* ハードウェアアクセラレーション */
     transform: translateZ(0);
   }
+  
+  /* Android Chromeのアドレスバー問題を軽減 */
+  body {
+    min-height: 100vh;
+    min-height: calc(100vh - env(safe-area-inset-bottom));
+  }
+}
+
+/* スクロール可能な要素の最適化 */
+.scrollable {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }

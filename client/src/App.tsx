@@ -1,10 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
-import { upsertExpense, getPendingExpenses, hardDeleteExpense, markSynced } from "./db";
+import { upsertExpense, getPendingExpenses, hardDeleteExpense, markSynced, saveExpensesFromServer, deleteOldExpenses } from "./db";
 import type { Expense, ExpenseInput } from "./db";
 import { useOnline } from "./hooks/useOnline";
 import { getApiBaseUrl, getApiKey, isSetupViaQr, clearSetup } from "./config/api";
 import SummaryPage from "./pages/SummaryPage";
-import { syncExpenses } from "./api/expenses";
+import { syncExpenses, fetchRecentExpenses } from "./api/expenses";
 import ApiUrlBox from "./components/ApiUrlBox";
 import PendingList from "./components/PendingList";
 import ExpenseForm from "./components/ExpenseForm";
@@ -57,12 +57,38 @@ export default function App() {
     try {
       const latest = await getPendingExpenses();
       if (latest.length === 0) {
-        alert("未送信がありません");
+        // 未送信がなくても、サーバーから直近2か月のデータを取得
+        alert("未送信がありません。サーバーから直近2か月のデータを取得します...");
       } else {
+        // 未送信データを送信
         const result = await syncExpenses(latest);
         await markSynced(result.ok_uuids);
         await refresh();
-        alert(`同期完了（成功 ${result.ok_uuids.length} / 失敗 ${result.ng_uuids.length}）`);
+        alert(`同期完了（成功 ${result.ok_uuids.length} / 失敗 ${result.ng_uuids.length}）\n\nサーバーから直近2か月のデータを取得します...`);
+      }
+
+      // サーバーから直近2か月のデータを取得して保存
+      try {
+        const serverItems = await fetchRecentExpenses(2);
+        await saveExpensesFromServer(serverItems);
+        
+        // 2か月より古いデータを削除
+        const today = new Date();
+        const twoMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 2, 1);
+        const cutoffDate = twoMonthsAgo.toISOString().slice(0, 10);
+        const deletedCount = await deleteOldExpenses(cutoffDate);
+        
+        await refresh();
+        
+        if (latest.length === 0) {
+          alert(`直近2か月のデータを取得しました（${serverItems.length}件）\n${deletedCount > 0 ? `古いデータを削除しました（${deletedCount}件）` : ""}`);
+        } else {
+          alert(`直近2か月のデータを取得しました（${serverItems.length}件）\n${deletedCount > 0 ? `古いデータを削除しました（${deletedCount}件）` : ""}`);
+        }
+      } catch (fetchError: any) {
+        // データ取得に失敗しても、送信は成功しているので警告のみ
+        console.error("Failed to fetch recent expenses:", fetchError);
+        alert(`警告: サーバーからデータを取得できませんでした\n${fetchError?.message ?? ""}`);
       }
     } catch (e: any) {
       if (e?.name === "AbortError" || e?.message?.includes("timeout")) {
@@ -98,6 +124,19 @@ export default function App() {
         fontWeight: tab === key ? 700 : 600,
         fontSize: 16,
         cursor: "pointer",
+        WebkitTapHighlightColor: "rgba(0, 0, 0, 0.1)",
+        touchAction: "manipulation",
+        WebkitUserSelect: "none",
+        userSelect: "none",
+        transition: "all 0.2s",
+      }}
+      onTouchStart={(e) => {
+        if (tab !== key) {
+          e.currentTarget.style.opacity = "0.8";
+        }
+      }}
+      onTouchEnd={(e) => {
+        e.currentTarget.style.opacity = "1";
       }}
     >
       {label}
