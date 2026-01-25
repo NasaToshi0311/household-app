@@ -10,6 +10,7 @@ import PendingList from "./components/PendingList";
 import ExpenseForm from "./components/ExpenseForm";
 import ConfirmDialog from "./components/ConfirmDialog";
 import * as S from "./ui/styles.ts";
+import { getMonthsAgoDate } from "./utils/date";
 
 export default function App() {
   const [items, setItems] = useState<Expense[]>([]);
@@ -50,6 +51,29 @@ export default function App() {
     }
   }
 
+  /**
+   * サーバーから直近2か月のデータを取得して保存
+   */
+  async function fetchAndSaveRecentData() {
+    try {
+      const serverItems = await fetchRecentExpenses(2);
+      await saveExpensesFromServer(serverItems);
+      
+      // 2か月より古いデータを削除
+      const cutoffDate = getMonthsAgoDate(2);
+      const deletedCount = await deleteOldExpenses(cutoffDate);
+      
+      await refresh();
+      
+      const deletedMsg = deletedCount > 0 ? `\n古いデータを削除しました（${deletedCount}件）` : "";
+      alert(`直近2か月のデータを取得しました（${serverItems.length}件）${deletedMsg}`);
+    } catch (fetchError: any) {
+      // データ取得に失敗しても、送信は成功しているので警告のみ
+      console.error("Failed to fetch recent expenses:", fetchError);
+      alert(`警告: サーバーからデータを取得できませんでした\n${fetchError?.message ?? ""}`);
+    }
+  }
+
   async function sync() {
     if (syncing) return;
     setSyncing(true);
@@ -68,28 +92,7 @@ export default function App() {
       }
 
       // サーバーから直近2か月のデータを取得して保存
-      try {
-        const serverItems = await fetchRecentExpenses(2);
-        await saveExpensesFromServer(serverItems);
-        
-        // 2か月より古いデータを削除
-        const today = new Date();
-        const twoMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 2, 1);
-        const cutoffDate = twoMonthsAgo.toISOString().slice(0, 10);
-        const deletedCount = await deleteOldExpenses(cutoffDate);
-        
-        await refresh();
-        
-        if (latest.length === 0) {
-          alert(`直近2か月のデータを取得しました（${serverItems.length}件）\n${deletedCount > 0 ? `古いデータを削除しました（${deletedCount}件）` : ""}`);
-        } else {
-          alert(`直近2か月のデータを取得しました（${serverItems.length}件）\n${deletedCount > 0 ? `古いデータを削除しました（${deletedCount}件）` : ""}`);
-        }
-      } catch (fetchError: any) {
-        // データ取得に失敗しても、送信は成功しているので警告のみ
-        console.error("Failed to fetch recent expenses:", fetchError);
-        alert(`警告: サーバーからデータを取得できませんでした\n${fetchError?.message ?? ""}`);
-      }
+      await fetchAndSaveRecentData();
     } catch (e: any) {
       if (e?.name === "AbortError" || e?.message?.includes("timeout")) {
         const apiUrl = getApiBaseUrl();

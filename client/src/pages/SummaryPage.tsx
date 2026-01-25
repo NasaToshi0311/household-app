@@ -2,29 +2,16 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { payerLabel } from "../constants/payer";
 import { getExpensesByRange, getPendingCount, markDeleteExpense, type Expense } from "../db";
+import { formatDate, startOfMonth, endOfMonth } from "../utils/date";
 
 type Summary = { start: string; end: string; total: number };
 type ByCategory = { category: string; total: number };
 type ByPayer = { paid_by: string | null; total: number };
 
-function ymd(d: Date) {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function startOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
-function endOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0);
-}
-
 export default function SummaryPage() {
   const today = useMemo(() => new Date(), []);
-  const [start, setStart] = useState<string>(ymd(startOfMonth(today)));
-  const [end, setEnd] = useState<string>(ymd(endOfMonth(today)));
+  const [start, setStart] = useState<string>(formatDate(startOfMonth(today)));
+  const [end, setEnd] = useState<string>(formatDate(endOfMonth(today)));
   const [expenseLimit, setExpenseLimit] = useState<number>(20);
 
   const [loading, setLoading] = useState(false);
@@ -180,15 +167,15 @@ export default function SummaryPage() {
 
   function setThisMonth() {
     const d = new Date();
-    setStart(ymd(startOfMonth(d)));
-    setEnd(ymd(endOfMonth(d)));
+    setStart(formatDate(startOfMonth(d)));
+    setEnd(formatDate(endOfMonth(d)));
   }
 
   function setLastMonth() {
     const d = new Date();
     d.setMonth(d.getMonth() - 1);
-    setStart(ymd(startOfMonth(d)));
-    setEnd(ymd(endOfMonth(d)));
+    setStart(formatDate(startOfMonth(d)));
+    setEnd(formatDate(endOfMonth(d)));
   }
 
   function setLast7Days() {
@@ -196,8 +183,8 @@ export default function SummaryPage() {
     const endD = new Date(d);
     const startD = new Date(d);
     startD.setDate(startD.getDate() - 6);
-    setStart(ymd(startD));
-    setEnd(ymd(endD));
+    setStart(formatDate(startD));
+    setEnd(formatDate(endD));
   }
 
   const totalText = (summary?.total ?? 0).toLocaleString("ja-JP");

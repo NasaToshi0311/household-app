@@ -257,6 +257,8 @@ export async function saveExpensesFromServer(
     const existing = await store.get(item.client_uuid);
 
     // 既存データがpending状態の場合は上書きしない（ローカルで未送信のデータを保護）
+    // 注意: 同じclient_uuidでサーバー側に更新があった場合でも、pending状態のデータは保護される
+    // これは、ユーザーが入力中のデータを誤って上書きするのを防ぐため
     if (existing && existing.status === "pending") {
       continue;
     }

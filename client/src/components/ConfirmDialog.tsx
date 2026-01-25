@@ -22,9 +22,8 @@ export default function ConfirmDialog({ message, onConfirm, onCancel }: Props) {
           zIndex: 1000,
           padding: 16,
           /* iOS Safariの100vh問題を回避 */
-          minHeight: "100vh",
           minHeight: "-webkit-fill-available" as any,
-        }}
+        } as React.CSSProperties}
         onClick={onCancel}
       >
         <div
