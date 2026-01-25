@@ -22,6 +22,15 @@ export default function ApiUrlBox({
   const [syncUrlError, setSyncUrlError] = useState<string | null>(null);
   const [syncUrlParamState, setSyncUrlParamState] = useState<string | null>(null);
   const [syncUrlSuccess, setSyncUrlSuccess] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<{
+    fetchCalled: boolean;
+    fetchSuccess: boolean;
+    responseData: any;
+    normalized: string;
+    apiKeySet: boolean;
+    setupViaQrSet: boolean;
+    localStorageValue: string | null;
+  } | null>(null);
 
   const onConfiguredChangeRef = useRef(onConfiguredChange);
 
@@ -40,12 +49,23 @@ export default function ApiUrlBox({
   }
 
   async function fetchSyncUrl(syncUrl: string) {
+    setDebugInfo({
+      fetchCalled: true,
+      fetchSuccess: false,
+      responseData: null,
+      normalized: "",
+      apiKeySet: false,
+      setupViaQrSet: false,
+      localStorageValue: null,
+    });
+    
     try {
       console.log("[ApiUrlBox] fetchSyncUrl called with:", syncUrl);
       const response = await fetch(syncUrl, { cache: "no-store" });
       if (!response.ok) {
         console.error("[ApiUrlBox] fetchSyncUrl failed:", response.status, response.statusText);
-        setSyncUrlError("PCと同じWi-Fiに接続されているか確認してください");
+        setSyncUrlError(`サーバーエラー: ${response.status} ${response.statusText}`);
+        setDebugInfo(prev => prev ? { ...prev, fetchSuccess: false } : null);
         return;
       }
 
@@ -55,6 +75,13 @@ export default function ApiUrlBox({
       const apiKey = data.api_key ? String(data.api_key) : "";
 
       console.log("[ApiUrlBox] normalized:", normalized, "apiKey:", apiKey ? "***" : "");
+      
+      setDebugInfo(prev => prev ? {
+        ...prev,
+        fetchSuccess: true,
+        responseData: data,
+        normalized: normalized,
+      } : null);
 
       try {
         if (normalized) {
@@ -64,10 +91,12 @@ export default function ApiUrlBox({
         if (apiKey) {
           setApiKey(apiKey);
           console.log("[ApiUrlBox] setApiKey called");
+          setDebugInfo(prev => prev ? { ...prev, apiKeySet: true } : null);
         }
       } catch (e: any) {
         console.error("[ApiUrlBox] localStorage save failed:", e);
         setSyncUrlError(e?.message ?? "設定の保存に失敗しました");
+        setDebugInfo(prev => prev ? { ...prev, fetchSuccess: false } : null);
         return;
       }
 
@@ -79,6 +108,12 @@ export default function ApiUrlBox({
           // localStorageの値を確認
           const saved = localStorage.getItem("setup_via_qr");
           console.log("[ApiUrlBox] setup_via_qr saved value:", saved);
+          
+          setDebugInfo(prev => prev ? {
+            ...prev,
+            setupViaQrSet: true,
+            localStorageValue: saved,
+          } : null);
           
           if (saved !== "1") {
             console.error("[ApiUrlBox] setup_via_qr was not saved correctly!");
@@ -223,6 +258,7 @@ export default function ApiUrlBox({
                       onClick={() => {
                         const decoded = decodeURIComponent(syncUrl);
                         setSyncUrlParamState(decoded);
+                        setDebugInfo(null);
                         fetchSyncUrl(decoded);
                       }}
                       style={{ ...S.btnPrimary, width: "100%", marginTop: 8, fontSize: 13 }}
@@ -236,6 +272,41 @@ export default function ApiUrlBox({
                   </div>
                 );
               })()}
+              
+              {debugInfo && (
+                <div style={{ 
+                  marginTop: 12, 
+                  padding: 12, 
+                  background: "#ffffff", 
+                  borderRadius: 8,
+                  border: "1px solid #d1d5db",
+                  fontSize: 11,
+                  fontFamily: "monospace"
+                }}>
+                  <strong style={{ display: "block", marginBottom: 8 }}>デバッグ情報:</strong>
+                  <div>fetch呼び出し: {debugInfo.fetchCalled ? "✓" : "✗"}</div>
+                  <div>fetch成功: {debugInfo.fetchSuccess ? "✓" : "✗"}</div>
+                  <div>base_url取得: {debugInfo.normalized ? `✓ (${debugInfo.normalized})` : "✗"}</div>
+                  <div>api_key設定: {debugInfo.apiKeySet ? "✓" : "✗"}</div>
+                  <div>setup_via_qr設定: {debugInfo.setupViaQrSet ? "✓" : "✗"}</div>
+                  <div>localStorage値: {debugInfo.localStorageValue ?? "null"}</div>
+                  {debugInfo.responseData && (
+                    <div style={{ marginTop: 8 }}>
+                      <strong>レスポンス:</strong>
+                      <pre style={{ 
+                        marginTop: 4, 
+                        padding: 8, 
+                        background: "#f9fafb", 
+                        borderRadius: 4,
+                        overflow: "auto",
+                        maxHeight: "200px"
+                      }}>
+                        {JSON.stringify(debugInfo.responseData, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </>
