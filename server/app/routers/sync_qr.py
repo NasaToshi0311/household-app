@@ -55,11 +55,9 @@ def sync_qr_png():
     ip = get_lan_ip()
     base_url = f"http://{ip}:8000"
 
-    sync_url = f"{base_url}/sync/url"
-
-    # 設定画面へ飛ばす（←ここがポイント）
+    # QRコードに直接 base_url と api_key を含める（一度のスキャンで全て取得可能）
     app_url = "https://household-app.vercel.app"
-    qr_url = f"{app_url}/?sync_url={quote(sync_url)}"
+    qr_url = f"{app_url}/?base_url={quote(base_url)}&api_key={quote(API_KEY)}"
 
     img = qrcode.make(qr_url)
     buf = BytesIO()
