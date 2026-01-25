@@ -70,11 +70,12 @@ Household Appは、スマートフォンから支出を入力し、PC上のサ�
 ### バックエンド
 
 - **フレームワーク**: FastAPI 0.115.6
-- **言語**: Python 3.x
+- **言語**: Python 3.12
 - **ORM**: SQLAlchemy 2.0.36
 - **データベースドライバ**: psycopg[binary] 3.2.3
 - **バリデーション**: Pydantic 2.10.2
 - **QRコード生成**: qrcode 8.0
+- **画像処理**: Pillow 11.0.0
 
 ### インフラストラクチャ
 
@@ -114,7 +115,9 @@ type PendingExpense = {
 **ストレージ構造**:
 - ObjectStore名: `expenses`（メインストレージ）
   - キー: `client_uuid` (Primary Key)
-  - インデックス: `by-status` (statusフィールドで検索可能)
+  - インデックス: 
+    - `by-status` (statusフィールドで検索可能)
+    - `by-date` (dateフィールドで範囲検索可能、v3で追加)
 - ObjectStore名: `pending`（後方互換性のため残存、使用されていない）
 - ObjectStore名: `meta`（マイグレーション状態の永続化用）
 
@@ -187,7 +190,7 @@ SummaryPage コンポーネント
 期間指定（開始日・終了日）
     ↓
 ローカルデータから集計:
-  - getExpensesByRange() → IndexedDB から期間内のデータを取得（op="delete"は除外）
+  - getExpensesByRange() → IndexedDB から期間内のデータを取得（`by-date`インデックスを使用した範囲クエリ、op="delete"は除外）
   - 合計金額、カテゴリ別集計、支払者別集計を計算
   - 明細一覧を表示（最大50件）
     ↓
@@ -319,7 +322,6 @@ SummaryPage コンポーネント
    - 環境変数`CORS_ORIGINS`で許可オリジンを指定（カンマ区切り）
    - デフォルト値（`CORS_ORIGINS`未設定時）:
      - `https://household-app.vercel.app`
-     - `http://10.76.108.202:5173`
      - `http://localhost:5173`
      - `http://127.0.0.1:5173`
    - `X-API-Key`ヘッダーを許可

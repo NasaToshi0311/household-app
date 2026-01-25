@@ -24,3 +24,30 @@ body {
 * {
   box-sizing: border-box;
 }
+
+/* モバイル（iOS/Android）用のタッチ操作最適化 */
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+/* ボタンやリンクのタッチフィードバック（iOS/Android共通） */
+button, a {
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+  touch-action: manipulation; /* ダブルタップズームを無効化、タッチレスポンスを改善 */
+}
+
+/* フォントレンダリング最適化（iOS/Android共通） */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Android Chrome用の追加最適化 */
+@media screen and (max-width: 768px) {
+  /* モバイル端末でのパフォーマンス最適化 */
+  * {
+    -webkit-transform: translateZ(0); /* ハードウェアアクセラレーション */
+    transform: translateZ(0);
+  }
+}

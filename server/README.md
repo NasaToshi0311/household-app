@@ -17,6 +17,7 @@ FastAPIで実装された家計簿アプリのバックエンドサーバーで�
 - **データベースドライバ**: psycopg[binary] 3.2.3
 - **バリデーション**: Pydantic 2.10.2
 - **QRコード生成**: qrcode 8.0
+- **画像処理**: Pillow 11.0.0
 - **Webサーバー**: Uvicorn 0.32.1
 - **データベース**: PostgreSQL 16
 
@@ -296,7 +297,6 @@ CREATE INDEX idx_expenses_date ON expenses(date);
 - 環境変数`CORS_ORIGINS`で許可オリジンを指定（カンマ区切り）
 - デフォルト値（`CORS_ORIGINS`未設定時）:
   - `https://household-app.vercel.app`
-  - `http://10.76.108.202:5173`
   - `http://localhost:5173`
   - `http://127.0.0.1:5173`
 

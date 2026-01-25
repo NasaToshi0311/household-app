@@ -108,7 +108,9 @@ client/
 ### expensesストア（メイン）
 
 - **キー**: `client_uuid` (Primary Key)
-- **インデックス**: `by-status` (statusフィールドで検索可能)
+- **インデックス**: 
+  - `by-status` (statusフィールドで検索可能)
+  - `by-date` (dateフィールドで範囲検索可能、v3で追加)
 - **データ型**: `Expense`
 
 ```typescript

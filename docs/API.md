@@ -527,13 +527,11 @@ curl http://localhost:8000/health
 
 ```json
 {
-  "detail": "Invalid API key. Expected length: {API_KEYの長さ}, Received length: {受信したAPIキーの長さ}"
+  "detail": "Invalid API key. Please scan QR code to set API key."
 }
 ```
 
-**注意**: `Expected length`の値は、サーバー側の`API_KEY`環境変数の長さによって異なります（デフォルト: 30文字）。
-
-**対処法**: `X-API-Key`ヘッダーを正しく設定してください。
+**対処法**: `X-API-Key`ヘッダーを正しく設定してください。QRコードを再読み取りしてAPIキーを更新してください。
 
 #### 400 Bad Request
 
