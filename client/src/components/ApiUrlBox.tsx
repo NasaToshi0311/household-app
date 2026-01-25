@@ -40,43 +40,55 @@ export default function ApiUrlBox({
 
   async function fetchSyncUrl(syncUrl: string) {
     try {
+      console.log("[ApiUrlBox] fetchSyncUrl called with:", syncUrl);
       const response = await fetch(syncUrl, { cache: "no-store" });
       if (!response.ok) {
+        console.error("[ApiUrlBox] fetchSyncUrl failed:", response.status, response.statusText);
         setSyncUrlError("PCと同じWi-Fiに接続されているか確認してください");
         return;
       }
 
       const data = await response.json();
+      console.log("[ApiUrlBox] fetchSyncUrl response:", data);
       const normalized = data.base_url ? String(data.base_url).replace(/\/+$/, "") : "";
       const apiKey = data.api_key ? String(data.api_key) : "";
+
+      console.log("[ApiUrlBox] normalized:", normalized, "apiKey:", apiKey ? "***" : "");
 
       try {
         if (normalized) {
           setApiBaseUrl(normalized);
+          console.log("[ApiUrlBox] setApiBaseUrl called");
         }
         if (apiKey) {
           setApiKey(apiKey);
+          console.log("[ApiUrlBox] setApiKey called");
         }
       } catch (e: any) {
+        console.error("[ApiUrlBox] localStorage save failed:", e);
         setSyncUrlError(e?.message ?? "設定の保存に失敗しました");
         return;
       }
 
       // QRセットアップ完了フラグを設定
       if (normalized && apiKey) {
+        console.log("[ApiUrlBox] Setting setup_via_qr to true");
         setSetupViaQr(true);
         // localStorageの更新を確実に反映させるため、少し待ってから通知
         setTimeout(() => {
+          console.log("[ApiUrlBox] Notifying configured change");
           notifyConfigured();
-        }, 100);
+        }, 200);
       } else {
+        console.warn("[ApiUrlBox] normalized or apiKey is empty, not setting setup_via_qr");
         notifyConfigured();
       }
 
       removeUrlParams(["sync_url"]);
       setSyncUrlParamState(null);
       setSyncUrlError(null);
-    } catch {
+    } catch (error: any) {
+      console.error("[ApiUrlBox] fetchSyncUrl exception:", error);
       setSyncUrlError("PCと同じWi-Fiに接続されているか確認してください");
     }
   }

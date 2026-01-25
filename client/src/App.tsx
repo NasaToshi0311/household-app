@@ -29,7 +29,19 @@ export default function App() {
   const apiBaseUrl = getApiBaseUrl().trim();
   const apiKey = getApiKey().trim();
   const configured = !!apiBaseUrl && !!apiKey;
-  const authorized = configured && isSetupViaQr();
+  const setupViaQr = isSetupViaQr();
+  const authorized = configured && setupViaQr;
+  
+  // デバッグ用（開発時のみ）
+  useEffect(() => {
+    console.log("[App] Authorization check:", {
+      apiBaseUrl: apiBaseUrl ? `${apiBaseUrl.substring(0, 20)}...` : "",
+      apiKey: apiKey ? "***" : "",
+      configured,
+      setupViaQr,
+      authorized,
+    });
+  }, [apiBaseUrl, apiKey, configured, setupViaQr, authorized]);
 
   const refresh = useCallback(async () => {
     setItems(await getPendingExpenses());
@@ -185,6 +197,25 @@ export default function App() {
             <p style={{ fontSize: 14, lineHeight: 1.6, color: "#6b7280", marginBottom: 16 }}>
               PCで /sync/page を開いてQRコードから設定してください。
             </p>
+            {settingsOpen && (
+              <div style={{ 
+                fontSize: 12, 
+                color: "#6b7280", 
+                marginTop: 16, 
+                padding: 12, 
+                background: "#f3f4f6", 
+                borderRadius: 8,
+                textAlign: "left"
+              }}>
+                <strong>デバッグ情報:</strong>
+                <div style={{ marginTop: 8 }}>
+                  <div>API URL設定: {configured ? "✓" : "✗"}</div>
+                  <div>QRセットアップ: {setupViaQr ? "✓" : "✗"}</div>
+                  <div>API URL: {apiBaseUrl || "(未設定)"}</div>
+                  <div>API Key: {apiKey ? "設定済み" : "(未設定)"}</div>
+                </div>
+              </div>
+            )}
           </div>
 
           <ApiUrlBox
