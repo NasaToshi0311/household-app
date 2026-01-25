@@ -23,9 +23,16 @@ export default function PendingList({ items, onDeleteOne }: Props) {
     );
   }
 
+  // 日付の降順（最新が上）でソート、同じ日付の場合はclient_uuidで降順
+  const sortedItems = [...items].sort((a, b) => {
+    const dateCompare = b.date.localeCompare(a.date);
+    if (dateCompare !== 0) return dateCompare;
+    return b.client_uuid.localeCompare(a.client_uuid);
+  });
+
   return (
     <div style={{ display: "grid", gap: 12 }}>
-      {items.map((i) => (
+      {sortedItems.map((i) => (
         <div 
           key={i.client_uuid} 
           style={{ 

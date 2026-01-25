@@ -2,6 +2,7 @@ import { useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { PendingExpense } from "../db";
 import { payerLabel, type PaidBy } from "../constants/payer";
+import { CATEGORY_ORDER } from "../constants/category";
 
 type Props = {
   onAdd: (item: PendingExpense) => Promise<void> | void;
@@ -119,12 +120,11 @@ export default function ExpenseForm({ onAdd }: Props) {
           transition: "border-color 0.2s",
         }}
       >
-        <option>食費</option>
-        <option>外食</option>
-        <option>日用品</option>
-        <option>住居・光熱費</option>
-        <option>交通費</option>
-        <option>その他</option>
+        {CATEGORY_ORDER.map((cat) => (
+          <option key={cat} value={cat}>
+            {cat}
+          </option>
+        ))}
       </select>
 
       <input

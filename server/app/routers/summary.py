@@ -6,6 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.constants.category import get_category_order
 
 router = APIRouter(prefix="/summary", tags=["summary"])
 
@@ -72,11 +73,13 @@ def get_summary_by_category(
         WHERE date >= :start AND date <= :end
         AND deleted_at IS NULL
         GROUP BY category
-        ORDER BY total DESC
     """)
 
     rows = db.execute(sql, {"start": start, "end": end}).all()
-    return [CategorySummaryItem(category=r.category, total=int(r.total)) for r in rows]
+    # 固定順序でソート
+    items = [CategorySummaryItem(category=r.category, total=int(r.total)) for r in rows]
+    items.sort(key=lambda x: (get_category_order(x.category), x.category))
+    return items
 
 
 @router.get("/by-payer", response_model=List[PayerSummaryItem])

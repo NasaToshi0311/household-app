@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 from app.db import get_db
 from app.models.expense import Expense
+from app.constants.category import get_category_order
 
 router = APIRouter(prefix="/stats", tags=["stats"]) # 統計ルーター
 
@@ -31,7 +32,6 @@ def monthly_stats(
         select(Expense.category, func.sum(Expense.amount))
         .where(*base_where)
         .group_by(Expense.category)
-        .order_by(func.sum(Expense.amount).desc())
     ).all() # カテゴリ別合計金額
 
     by_payer_rows = db.execute(
@@ -40,9 +40,13 @@ def monthly_stats(
         .group_by(Expense.paid_by)
     ).all() # 支払者別合計金額
 
+    # カテゴリを固定順序でソート
+    by_category_dict = {k: int(v) for k, v in by_category_rows}
+    sorted_by_category = dict(sorted(by_category_dict.items(), key=lambda x: (get_category_order(x[0]), x[0])))
+
     return {
         "month": month, # 月
         "total": int(total), # 合計金額
-        "by_category": {k: int(v) for k, v in by_category_rows}, # カテゴリ別合計金額
+        "by_category": sorted_by_category, # カテゴリ別合計金額（固定順序）
         "by_payer": {k: int(v) for k, v in by_payer_rows}, # 支払者別合計金額
     } # 結果を返す

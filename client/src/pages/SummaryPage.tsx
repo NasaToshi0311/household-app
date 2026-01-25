@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { payerLabel } from "../constants/payer";
+import { sortCategoriesByOrder } from "../constants/category";
 import { getExpensesByRange, getPendingCount, markDeleteExpense, type Expense } from "../db";
 import { formatDate, startOfMonth, endOfMonth } from "../utils/date";
 
@@ -71,14 +72,15 @@ export default function SummaryPage() {
         payerMap.set(item.paid_by, (payerMap.get(item.paid_by) || 0) + item.amount);
       });
 
-      const byCategory: ByCategory[] = Array.from(categoryMap.entries())
-        .map(([category, total]) => ({ category, total }))
-        .sort((a, b) => b.total - a.total);
+      const byCategory: ByCategory[] = sortCategoriesByOrder(
+        Array.from(categoryMap.entries()).map(([category, total]) => ({ category, total }))
+      );
 
       const byPayer: ByPayer[] = Array.from(payerMap.entries())
         .map(([paid_by, total]) => ({ paid_by, total }))
         .sort((a, b) => b.total - a.total);
 
+      // 日付の降順（最新が上）でソート、同じ日付の場合はclient_uuidで降順
       const expensesList: Expense[] = filtered
         .sort((a, b) => {
           const dateCompare = b.date.localeCompare(a.date);
@@ -135,6 +137,13 @@ export default function SummaryPage() {
     if (filterPayer) {
       filtered = filtered.filter((e) => e.paid_by === filterPayer);
     }
+
+    // 日付の降順（最新が上）でソート、同じ日付の場合はclient_uuidで降順
+    filtered.sort((a, b) => {
+      const dateCompare = b.date.localeCompare(a.date);
+      if (dateCompare !== 0) return dateCompare;
+      return b.client_uuid.localeCompare(a.client_uuid);
+    });
 
     setExpenses(filtered.slice(0, expenseLimit));
   }, [allExpenses, filterCategory, filterPayer, expenseLimit]);
