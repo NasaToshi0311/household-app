@@ -13,6 +13,17 @@ type Props = {
   isOpen: boolean;
 };
 
+/**
+ * QRコードの設定パラメータを取得
+ * 新方式は #base_url=...&api_key=...（フラグメントはサーバーに送られないので、APIキーがアクセスログに残らない）
+ * 旧方式の ?base_url=...&api_key=... / ?sync_url=... にも対応
+ */
+function getSetupParams(): URLSearchParams {
+  const hashParams = new URLSearchParams(window.location.hash.slice(1));
+  if (hashParams.get("base_url") && hashParams.get("api_key")) return hashParams;
+  return new URLSearchParams(window.location.search);
+}
+
 export default function ApiUrlBox({
   itemsCount,
   online,
@@ -38,6 +49,7 @@ export default function ApiUrlBox({
   function removeUrlParams(paramsToRemove: string[]) {
     const newUrl = new URL(window.location.href);
     paramsToRemove.forEach((param) => newUrl.searchParams.delete(param));
+    newUrl.hash = "";
     window.history.replaceState(null, "", newUrl.toString());
   }
 
@@ -178,7 +190,7 @@ export default function ApiUrlBox({
   }
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = getSetupParams();
     const baseUrlParam = params.get("base_url");
     const apiKeyParam = params.get("api_key");
     const syncUrlRaw = params.get("sync_url");
@@ -207,7 +219,7 @@ export default function ApiUrlBox({
   const canSync = online && !syncing && configured;
   const hasPending = itemsCount > 0;
 
-  const params = new URLSearchParams(window.location.search);
+  const params = getSetupParams();
   const qrBaseUrl = params.get("base_url");
   const qrApiKey = params.get("api_key");
 

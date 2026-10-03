@@ -26,16 +26,22 @@ else:
         "http://127.0.0.1:5173",
     ]
 
-# LAN制限（/sync 配下だけ許可）
+# LAN制限: APIキーを発行するQR関連ページとAPIドキュメントは、家のLAN・PC本体からのみ開けるようにする
+# （データ同期の /sync/expenses, /sync/changes はAPIキー認証のみで外部からも利用可）
 ALLOW_SUBNETS = os.environ.get("ALLOW_SUBNETS", "")  # 例: "192.168.1.0/24"
 
-if ALLOW_SUBNETS:
-    app.add_middleware(
-        LanOnlyMiddleware,
-        allow_subnets=ALLOW_SUBNETS,
-        protected_prefixes=("/sync",),
-    )
+app.add_middleware(
+    LanOnlyMiddleware,
+    allow_subnets=ALLOW_SUBNETS,
+    protected_prefixes=("/sync/page", "/sync/qr.png", "/sync/url", "/docs", "/redoc", "/openapi.json"),
+)
 
+# APIキー認証ミドルウェアを追加
+app.add_middleware(APIKeyMiddleware)
+
+# CORSは最後に追加する（＝一番外側で動く）。
+# 認証エラー(401)などのレスポンスにもCORSヘッダーが付き、ブラウザが「接続エラー」ではなく
+# 「認証エラー」として受け取れるようにするため
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -43,9 +49,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*", "X-API-Key"],
 )
-
-# APIキー認証ミドルウェアを追加
-app.add_middleware(APIKeyMiddleware)
 
 # 開発用：起動時にテーブル作成（本番はAlembicにする）
 Base.metadata.create_all(bind=engine) # テーブルを作成

@@ -39,7 +39,9 @@ services:
 
     environment: # API用の環境変数
       DATABASE_URL: postgresql+psycopg://household:household@db:5432/household # DB接続URL
-      API_KEY: "household-app-secret-key-2024"  # APIキー（デフォルト値、本番環境では変更推奨）
+      # APIキーと外部公開URLは server/.env に書く（.env はGitに含めない）
+      API_KEY: ${API_KEY:?server/.env に API_KEY を設定してください}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
       CORS_ORIGINS: "https://household-app.vercel.app,http://localhost:5173"
       HOST_IP: "192.168.0.34"
       FRONTEND_URL: "https://household-app.vercel.app"

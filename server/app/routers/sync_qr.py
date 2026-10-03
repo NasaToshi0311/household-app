@@ -6,9 +6,12 @@ from io import BytesIO
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 
+from app.middleware.auth import API_KEY
+
 router = APIRouter(prefix="/sync", tags=["sync-qr"])
 
-API_KEY = os.environ.get("API_KEY", "household-app-secret-key-2024")
+# 外部（Tailscale Funnel 等）から https でアクセスできるURL。設定されていればQRコードにはこちらを使う
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").strip().rstrip("/")
 
 # VercelのフロントURL（環境変数で変えられるように）
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://household-app.vercel.app")
@@ -41,10 +44,14 @@ def get_lan_ip() -> str:
     finally:
         s.close()
 
+def get_base_url() -> str:
+    if PUBLIC_BASE_URL:
+        return PUBLIC_BASE_URL
+    return f"http://{get_lan_ip()}:8000"
+
 @router.get("/url")
 def sync_url():
-    ip = get_lan_ip()
-    base_url = f"http://{ip}:8000"
+    base_url = get_base_url()
     return {
         "base_url": base_url,
         "api_key": API_KEY,
@@ -52,12 +59,11 @@ def sync_url():
 
 @router.get("/qr.png")
 def sync_qr_png():
-    ip = get_lan_ip()
-    base_url = f"http://{ip}:8000"
+    base_url = get_base_url()
 
     # QRコードに直接 base_url と api_key を含める（一度のスキャンで全て取得可能）
-    app_url = "https://household-app.vercel.app"
-    qr_url = f"{app_url}/?base_url={quote(base_url)}&api_key={quote(API_KEY)}"
+    # ?ではなく#（フラグメント）に入れることで、APIキーがVercelのアクセスログに残らないようにする
+    qr_url = f"{FRONTEND_URL}/#base_url={quote(base_url)}&api_key={quote(API_KEY)}"
 
     img = qrcode.make(qr_url)
     buf = BytesIO()
@@ -74,7 +80,8 @@ def sync_page():
     <head><meta charset="utf-8"><title>同期QR</title></head>
     <body style="font-family: sans-serif; padding: 24px;">
       <h1>同期用QR</h1>
-      <p>スマホのカメラで読み取ってください（家Wi-Fi接続中のみ同期できます）。</p>
+      <p>スマホのカメラで読み取ってください。</p>
+      <p>同期先: {get_base_url()}</p>
       <img src="/sync/qr.png" style="width: 320px; height: 320px;" />
       <p>確認用: <a href="/sync/url" target="_blank">/sync/url</a></p>
     </body>

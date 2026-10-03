@@ -3,6 +3,16 @@ import ipaddress
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
+# プロキシ（Tailscale Funnel 等）を経由したリクエストに付くヘッダー
+PROXY_HEADERS = (
+    "x-forwarded-for",
+    "x-forwarded-host",
+    "x-forwarded-proto",
+    "x-real-ip",
+    "forwarded",
+    "tailscale-funnel-request",
+)
+
 def _parse_networks(value: str):
     nets = []
     for part in (value or "").split(","):
@@ -12,25 +22,22 @@ def _parse_networks(value: str):
         nets.append(ipaddress.ip_network(part, strict=False))
     return nets
 
-def _get_client_ip(request) -> str:
+def _is_proxied(request) -> bool:
     """
-    できるだけ「本当のクライアントIP」を取る。
-    - まず X-Forwarded-For（先頭が元IP）を見る
-    - 次に X-Real-IP
-    - 最後に request.client.host
+    インターネット側からプロキシ経由で届いたリクエストかどうか。
+    X-Forwarded-For 等はクライアントが偽装できるため、IPの判定には使わず
+    「付いていたら外部からのアクセスとみなして拒否する」安全側の判定にだけ使う。
     """
-    xff = request.headers.get("x-forwarded-for")
-    if xff:
-        # "client, proxy1, proxy2" の形式。先頭が元IP
-        return xff.split(",")[0].strip()
-
-    xri = request.headers.get("x-real-ip")
-    if xri:
-        return xri.strip()
-
-    return request.client.host
+    if any(h in request.headers for h in PROXY_HEADERS):
+        return True
+    host = request.headers.get("host", "").split(":")[0].lower()
+    return host.endswith(".ts.net")
 
 class LanOnlyMiddleware(BaseHTTPMiddleware):
+    """
+    指定したパス（APIキーを発行するQR関連ページ）を、家のLANとPC本体からのアクセスに限定する。
+    allow_subnets が空でも、プロキシ経由（外部）のアクセスは常に拒否する。
+    """
     def __init__(self, app, allow_subnets: str, protected_prefixes=("/sync",), allow_loopback: bool = True):
         super().__init__(app)
         self.allow_nets = _parse_networks(allow_subnets)
@@ -38,20 +45,20 @@ class LanOnlyMiddleware(BaseHTTPMiddleware):
         self.allow_loopback = allow_loopback
 
     async def dispatch(self, request, call_next):
-        # /sync 配下だけ守る
         if not request.url.path.startswith(self.protected_prefixes):
             return await call_next(request)
 
+        if _is_proxied(request):
+            return JSONResponse({"detail": "LAN only"}, status_code=403)
+
         if not self.allow_nets:
-            return JSONResponse({"detail": "LAN restriction is not configured"}, status_code=403)
+            return await call_next(request)
 
-        client_ip_str = _get_client_ip(request)
-
-        # たまに "unknown" とか来るケースもあるので安全側
+        client_host = request.client.host if request.client else ""
         try:
-            client_ip = ipaddress.ip_address(client_ip_str)
+            client_ip = ipaddress.ip_address(client_host)
         except ValueError:
-            return JSONResponse({"detail": f"LAN only (invalid ip: {client_ip_str})"}, status_code=403)
+            return JSONResponse({"detail": f"LAN only (invalid ip: {client_host})"}, status_code=403)
 
         # 開発用：127.0.0.1 等は許可
         if self.allow_loopback and client_ip.is_loopback:

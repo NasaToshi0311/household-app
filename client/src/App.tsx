@@ -34,11 +34,15 @@ function syncErrorMessage(e: any): string {
   if (!isTimeout && !isNetwork) {
     return `同期に失敗しました\n${e?.message ?? "不明なエラー"}`;
   }
+  const baseUrl = getApiBaseUrl();
+  const viaInternet = baseUrl.startsWith("https://");
   return (
     `同期に失敗しました（${isTimeout ? "タイムアウト" : "サーバーに接続できません"}）\n` +
-    `・PCのサーバーが起動しているか\n` +
-    `・PCとスマホが同じWi-Fiにつながっているか\n` +
-    `・同期先: ${getApiBaseUrl() || "未設定"}`
+    `・PCの電源が入っていて、サーバー（Docker）が起動しているか\n` +
+    (viaInternet
+      ? `・PCでTailscaleが接続中になっているか\n`
+      : `・PCとスマホが同じWi-Fiにつながっているか\n`) +
+    `・同期先: ${baseUrl || "未設定"}`
   );
 }
 
