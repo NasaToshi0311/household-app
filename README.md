@@ -77,8 +77,8 @@
 - 初回はAPIのURLとAPIキーを設定してください（QRコード推奨）
   - QRコードは `http://[PCのIP]:8000/sync/page` で表示できます
   - QRコードを読み取ると、自動的にAPI URLとAPIキーが設定されます
-  - QRコードには `sync_url` パラメータが含まれており、そこからAPI URLとAPIキーを取得します
-  - QRコードのURL形式: `https://household-app.vercel.app/?sync_url={URL}`（`sync_url`には`http://[PCのIP]:8000/sync/url`が含まれる）
+  - QRコードには `base_url` と `api_key` パラメータが直接含まれており、一度のスキャンで全ての情報を取得できます
+  - QRコードのURL形式: `https://household-app.vercel.app/?base_url={URL}&api_key={KEY}`（`base_url`には`http://[PCのIP]:8000`が、`api_key`にはAPIキーが含まれる）
 - 金額は整数のみ入力可能です（小数点は使用できません）
 - 日付の入力範囲に制限はありませんが、無効な日付形式はエラーになります
 

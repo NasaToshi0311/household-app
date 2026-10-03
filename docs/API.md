@@ -158,7 +158,7 @@ GET /sync/qr.png
 - Content-Type: `image/png`
 - QRコード画像（PNG形式）
 
-QRコードには、`https://household-app.vercel.app/?sync_url={URL}`形式のURLが含まれます。`sync_url`パラメータには`http://[PCのIP]:8000/sync/url`が含まれ、クライアント側でこのURLにアクセスして`base_url`と`api_key`を取得します。
+QRコードには、`https://household-app.vercel.app/?base_url={URL}&api_key={KEY}`形式のURLが含まれます。`base_url`パラメータには`http://[PCのIP]:8000`が、`api_key`パラメータにはAPIキーが含まれ、クライアント側で直接設定されます。一度のスキャンで全ての情報を取得できるため、追加のネットワークリクエストは不要です。
 
 **curl例**
 

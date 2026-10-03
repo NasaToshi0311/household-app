@@ -157,6 +157,7 @@ docker compose logs api | grep -i error
    ```
    - JSONレスポンスが返るか確認
    - `base_url`と`api_key`が正しく含まれているか確認
+   - QRコードには `https://household-app.vercel.app/?base_url={URL}&api_key={KEY}` 形式のURLが含まれます
 
 3. **HOST_IP環境変数を確認**
    - `docker-compose.yml`の`HOST_IP`が正しく設定されているか
@@ -322,6 +323,11 @@ docker compose exec db psql -U household -d household -c "SELECT pg_size_pretty(
 
 **症状**: 「同期する」ボタンを押してもエラーが表示される、または同期が完了しない
 
+**よくあるエラーメッセージ**:
+- `"サーバーからデータを取得できませんでした。load failed"`: ネットワークエラー（iOS Safariでよく発生）
+- `"タイムアウト"`: サーバーへの接続に時間がかかりすぎている
+- `"認証に失敗しました"`: APIキーが一致していない
+
 **確認手順**:
 
 1. **APIログを確認**
@@ -334,19 +340,27 @@ docker compose exec db psql -U household -d household -c "SELECT pg_size_pretty(
 2. **ネットワーク接続を確認**
    - スマホがオンラインか確認
    - PCとスマホが同じネットワークに接続されているか
+   - PC側で `http://localhost:8000/health` にアクセスしてサーバーが起動しているか確認
 
 3. **APIキーを確認**
    - サーバー側とクライアント側のAPIキーが一致しているか
+   - 設定画面で現在の設定値を確認
 
 4. **同期するデータ量を確認**
    - 1000件以下であることを確認
 
+5. **設定値を確認**
+   - 設定画面を開いて、現在のAPI URLとAPIキーを確認
+   - API URLが正しいか（`http://[PCのIP]:8000` 形式）
+
 **解決方法**:
 
-- ネットワーク接続を確認
+- ネットワーク接続を確認（PCとスマホが同じWi-Fiに接続されているか）
+- サーバーが起動しているか確認（`docker compose ps`）
 - APIキーを再設定（QRコードを再読み取り）
 - 同期するデータ量を減らす
 - サーバーのログを確認して、具体的なエラー原因を特定
+- ファイアウォールがポート8000をブロックしていないか確認
 
 ### 同期が成功したがデータが反映されない
 
