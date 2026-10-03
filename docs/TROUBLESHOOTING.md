@@ -103,41 +103,29 @@ docker compose logs api | grep -i error
 
 ### スマホからサーバーに接続できない
 
-**症状**: スマホのブラウザで`http://[PCのIP]:8000/app`にアクセスできない
+**症状**: スマホで同期がタイムアウトする、またはエラーになる
 
 **確認手順**:
 
-1. **PCとスマホが同じネットワークに接続されているか確認**
-   - 同じWi-Fiネットワークに接続されているか
-   - テザリングの場合は、PCがテザリングのホストになっているか
-
-2. **PCのIPアドレスを確認**
+1. **Tailscale Funnelが有効か確認**
    ```bash
-   # Windows
-   ipconfig
-   
-   # Mac/Linux
-   ifconfig
-   # または
-   ip addr
+   tailscale funnel status
    ```
-   - 「IPv4アドレス」を確認（例: `192.168.1.100`）
+   - 公開URL（`https://pc2023.tail5d0b68.ts.net`など）が表示されるか確認
 
-3. **PCのファイアウォール設定を確認**
-   - Windows: コントロールパネル > システムとセキュリティ > Windows Defender ファイアウォール
-   - ポート8000が許可されているか確認
-   - 必要に応じて、ポート8000を許可するルールを追加
-
-4. **サーバーが起動しているか確認**
+2. **PC側でサーバーが起動しているか確認**
    ```bash
    curl http://localhost:8000/health
    ```
 
+3. **`server/.env`の`PUBLIC_BASE_URL`を確認**
+   - Tailscale Funnelの公開URLと一致しているか確認
+
 **解決方法**:
 
-- ファイアウォールでポート8000を許可
-- PCのIPアドレスを再確認（IPアドレスが変更されている可能性）
-- ルーターの設定を確認（ポート転送など）
+- Tailscale Funnelを再起動: `tailscale funnel --https=443 off` の後に `tailscale funnel --bg 8000`
+- PCがスリープ・シャットダウンしていないか確認（サーバーはPC起動時に自動では立ち上がらない運用のため、`docker compose up -d`し直す必要がある場合がある）
+- `server/.env`を変更した場合は`docker compose up -d --force-recreate api`で反映
 
 ### QRコードが読み取れない
 
@@ -147,30 +135,27 @@ docker compose logs api | grep -i error
 
 1. **QRコードページにアクセスできるか確認**
    ```
-   http://[PCのIP]:8000/sync/page
+   http://localhost:8000/sync/page
    ```
-   - PCのブラウザでアクセスして、QRコードが表示されるか確認
+   - PC本体かLAN内の端末のブラウザでアクセスして、QRコードが表示されるか確認
+   - このページは外部（Tailscale Funnel経由）からは開けない仕様（LAN限定ミドルウェア）
 
 2. **QRコードのURLを確認**
    ```
-   http://[PCのIP]:8000/sync/url
+   http://localhost:8000/sync/url
    ```
    - JSONレスポンスが返るか確認
    - `base_url`と`api_key`が正しく含まれているか確認
-   - QRコードには `https://household-app.vercel.app/?base_url={URL}&api_key={KEY}` 形式のURLが含まれます
+   - QRコードには `https://household-app.vercel.app/#base_url={URL}&api_key={KEY}` 形式のURLが含まれます
 
-3. **HOST_IP環境変数を確認**
-   - `docker-compose.yml`の`HOST_IP`が正しく設定されているか
-   - Dockerコンテナの内部IP（172.17.x.xなど）が返っている場合は、`HOST_IP`を明示的に設定
+3. **`PUBLIC_BASE_URL`環境変数を確認**
+   - `server/.env`の`PUBLIC_BASE_URL`が正しく設定されているか
+   - 未設定の場合はLAN内IPが使われるため、外部（モバイル回線）からは同期できない
 
 **解決方法**:
 
-- `docker-compose.yml`に`HOST_IP`環境変数を追加:
-  ```yaml
-  environment:
-    HOST_IP: "192.168.1.100"  # 実際のPCのIPアドレス
-  ```
-- コンテナを再起動: `docker compose restart api`
+- `server/.env`に`PUBLIC_BASE_URL`を設定（Tailscale FunnelのhttpsURL）
+- コンテナを再作成: `docker compose up -d --force-recreate api`
 - 手動でURLとAPIキーを設定する方法を試す
 
 ### タイムアウトエラーが発生する
@@ -180,8 +165,8 @@ docker compose logs api | grep -i error
 **確認手順**:
 
 1. **ネットワーク接続を確認**
-   - PCとスマホが同じネットワークに接続されているか
-   - ネットワークの速度が遅くないか
+   - スマホの回線速度が遅くないか
+   - Tailscale Funnel経由の接続が不安定でないか（`tailscale funnel status`）
 
 2. **サーバーのログを確認**
    ```bash
@@ -191,7 +176,7 @@ docker compose logs api | grep -i error
 
 **解決方法**:
 
-- タイムアウト時間は15秒に設定されています（テザリング環境を考慮）
+- タイムアウト時間は15秒に設定されています（モバイル回線での遅延を考慮）
 - ネットワーク接続を改善する
 - 同期するデータ量を減らす（1000件以下）
 
@@ -205,9 +190,9 @@ docker compose logs api | grep -i error
 
 1. **サーバー側のAPIキーを確認**
    ```bash
-   # docker-compose.ymlを確認
-   cat server/docker-compose.yml | grep API_KEY
-   
+   # server/.env を確認（このファイルはGitには含まれない）
+   cat server/.env
+
    # または、コンテナ内の環境変数を確認
    docker compose exec api env | grep API_KEY
    ```
@@ -339,7 +324,7 @@ docker compose exec db psql -U household -d household -c "SELECT pg_size_pretty(
 
 2. **ネットワーク接続を確認**
    - スマホがオンラインか確認
-   - PCとスマホが同じネットワークに接続されているか
+   - Tailscale Funnelが有効か確認（`tailscale funnel status`）
    - PC側で `http://localhost:8000/health` にアクセスしてサーバーが起動しているか確認
 
 3. **APIキーを確認**
@@ -351,16 +336,15 @@ docker compose exec db psql -U household -d household -c "SELECT pg_size_pretty(
 
 5. **設定値を確認**
    - 設定画面を開いて、現在のAPI URLとAPIキーを確認
-   - API URLが正しいか（`http://[PCのIP]:8000` 形式）
+   - API URLがTailscale Funnelの公開URL（`https://pc2023.tail5d0b68.ts.net`など）になっているか
 
 **解決方法**:
 
-- ネットワーク接続を確認（PCとスマホが同じWi-Fiに接続されているか）
+- ネットワーク接続を確認（Tailscale Funnelが有効か、スマホがオンラインか）
 - サーバーが起動しているか確認（`docker compose ps`）
 - APIキーを再設定（QRコードを再読み取り）
 - 同期するデータ量を減らす
 - サーバーのログを確認して、具体的なエラー原因を特定
-- ファイアウォールがポート8000をブロックしていないか確認
 
 ### 同期が成功したがデータが反映されない
 
@@ -435,7 +419,7 @@ docker compose exec db psql -U household -d household -c "SELECT client_uuid, CO
 
 1. **HTTPSまたはlocalhostでアクセスしているか確認**
    - PWAはHTTPSまたはlocalhostでのみ動作します
-   - 本番環境では`http://[PCのIP]:8000/app`でアクセス
+   - 本番環境では`https://household-app.vercel.app`でアクセス
 
 2. **Service Workerが登録されているか確認**
    - ブラウザの開発者ツール > Application > Service Workers
@@ -470,31 +454,58 @@ docker compose exec db psql -U household -d household -c "SELECT client_uuid, CO
 
 ## その他の問題
 
-### バックアップが失敗する
+### バックアップが失敗する・作成されない
 
-**症状**: `backup_db.ps1`を実行してもバックアップが作成されない
+**症状**: 自動バックアップ（タスクスケジューラ）を設定したのに、`expenses_YYYY-MM-DD.sql`が増えていない
 
 **確認手順**:
 
-1. **PowerShellの実行ポリシーを確認**
+1. **まずログを確認する**（原因の9割はここで分かります）
+   ```powershell
+   Get-Content "$env:USERPROFILE\OneDrive\household-app-backup\backup.log" -Tail 20
+   ```
+   - `OK: Backup saved to ...` → 正常に成功している
+   - `SKIP: household-db is not running.` → **これは異常ではありません**。サーバー（`docker compose up -d`）を起動していない時間帯にタスクが実行されると、エラーにせずスキップする仕様です。サーバーを起動してからタスクを手動実行するか、翌日の実行を待ってください
+   - `ERROR: Backup failed - ...` → pg_dump自体が失敗している。エラーメッセージの内容を確認
+
+2. **タスクスケジューラの実行結果を確認**
+   ```powershell
+   Get-ScheduledTask -TaskName 'HouseholdApp-DbBackup' | Get-ScheduledTaskInfo
+   ```
+   - `LastTaskResult` が `0` 以外の場合、スクリプト自体が実行できていない可能性がある（PowerShellの実行ポリシーなど）
+   - `LastRunTime` が想定より古い場合、タスクが登録されていない・無効化されている可能性がある
+
+3. **PowerShellの実行ポリシーを確認**
    ```powershell
    Get-ExecutionPolicy
    ```
+   タスクは`-ExecutionPolicy Bypass`で実行されるため通常は問題にならないが、手動実行時にエラーになる場合はここを確認
 
-2. **OneDriveのパスを確認**
-   - `backup_db.ps1`内のOneDriveパスが正しいか確認
+4. **タスクが登録されているか確認**
+   ```powershell
+   Get-ScheduledTask -TaskName 'HouseholdApp-DbBackup'
+   ```
+   登録されていない場合は `server/register_backup_task.ps1` を実行
 
 **解決方法**:
 
-- 実行ポリシーを変更（管理者権限が必要）:
+- サーバーが起動している状態で手動実行して確認:
+  ```powershell
+  cd server
+  .\backup_db.ps1
+  ```
+  （`household-db`が起動していれば`OK`、起動していなければ`SKIP`がログに記録される。どちらになるかで原因が分かる）
+- 実行ポリシーを変更する場合（管理者権限が必要）:
   ```powershell
   Set-ExecutionPolicy RemoteSigned
   ```
-- OneDriveのパスを確認・修正
-- 手動でバックアップを実行:
+- タスクを登録し直す: `.\register_backup_task.ps1`（既存タスクは自動的に削除・再登録される）
+- 手動でバックアップを取る:
   ```bash
   docker compose exec -T db pg_dump -U household household > backup.sql
   ```
+
+詳細は [OPERATIONS.md](OPERATIONS.md) の「データベースバックアップ」も参照してください。
 
 ### パフォーマンスが遅い
 

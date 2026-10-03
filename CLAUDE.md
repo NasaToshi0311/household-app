@@ -27,7 +27,7 @@ PCの Docker: household-api (FastAPI :8000) + household-db (PostgreSQL)
 ## セキュリティ上の決まり（変更するときは注意）
 
 - **APIキーは `server/.env` の `API_KEY` で管理する。Gitに入れない。** リポジトリは公開されている。`docker-compose.yml` は `.env` が無いと起動しない設定にしてある。
-  - 旧デフォルトキー `household-app-secret-key-2024` は README 等に残っているが、もう無効。
+  - 旧デフォルトキー `household-app-secret-key-2024` の記載は README・docs から削除済み（2026-10）。今後も残留させないこと。
   - キーを変えたら、スマホ側は `/sync/page` のQRを読み直す必要がある。
 - `server/.env` の `PUBLIC_BASE_URL` がQRコードに入る同期先URL（未設定なら `http://HOST_IP:8000`）。
 - **APIキーを発行するページ（`/sync/page`, `/sync/qr.png`, `/sync/url`）と `/docs`, `/openapi.json` は外部から開けない。** `app/middleware/lan_only.py` で、プロキシ経由（X-Forwarded-For 等のヘッダーや `*.ts.net` のHost）のリクエストを拒否している。X-Forwarded-For は偽装できるので、IPの許可判定には使わないこと。

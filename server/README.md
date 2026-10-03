@@ -41,13 +41,14 @@ server/
 │   └── middleware/        # ミドルウェア
 │       ├── auth.py         # APIキー認証ミドルウェア
 │       └── lan_only.py     # LAN制限ミドルウェア（オプション）
-├── static/                 # 静的ファイル（フロントエンドのビルド結果）
-│   └── dist/
 ├── Dockerfile              # Dockerイメージ定義
 ├── docker-compose.yml      # Docker Compose設定
 ├── requirements.txt       # Python依存パッケージ
-└── backup_db.ps1          # データベースバックアップスクリプト
+├── backup_db.ps1          # データベースバックアップスクリプト
+└── register_backup_task.ps1  # backup_db.ps1をタスクスケジューラに登録するスクリプト
 ```
+
+フロントエンドは`server`では配信していません（Vercelでホスティング、`https://household-app.vercel.app`）。
 
 ## 開発環境のセットアップ
 
@@ -55,6 +56,7 @@ server/
 
 - Docker / Docker Compose がインストールされていること
 - Python 3.12以上（ローカル開発の場合）
+- `server/.env` に `API_KEY` を設定済みであること（未設定だと起動しない。詳細は [docs/SETUP.md](../docs/SETUP.md)）
 
 ### Dockerを使用した開発
 
@@ -87,11 +89,12 @@ pip install -r requirements.txt
 
 # 環境変数の設定
 export DATABASE_URL="postgresql+psycopg://household:household@localhost:5432/household"
-export API_KEY="household-app-secret-key-2024"
+export API_KEY="your-strong-random-api-key"
 export CORS_ORIGINS="http://localhost:5173"
 export HOST_IP="192.168.1.100"
+export PUBLIC_BASE_URL=""  # QRコードの同期先URL（Tailscale FunnelのhttpsURLなど。未設定ならHOST_IPを使う）
 export FRONTEND_URL="https://household-app.vercel.app"  # QRコード生成時に使用（オプション）
-export ALLOW_SUBNETS="192.168.0.0/24,172.16.0.0/12"  # LAN制限（オプション）
+export ALLOW_SUBNETS="192.168.0.0/24,172.16.0.0/12"  # LAN限定ページの許可サブネット（オプション）
 
 # サーバー起動
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -220,7 +223,7 @@ SELECT * FROM expenses ORDER BY date DESC LIMIT 10;
 
 ### APIドキュメント
 
-FastAPIの自動生成ドキュメントを確認：
+FastAPIの自動生成ドキュメントを確認（PC本体・家のLANからのみアクセス可能。Tailscale Funnel経由の外部アクセスは拒否されます）：
 
 - Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
@@ -236,7 +239,7 @@ curl http://localhost:8000/health
 # 同期エンドポイントのテスト（APIキーが必要）
 curl -X POST http://localhost:8000/sync/expenses \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: household-app-secret-key-2024" \
+  -H "X-API-Key: your-api-key" \
   -d '{"items": []}'
 ```
 
@@ -288,9 +291,11 @@ CREATE INDEX idx_expenses_date ON expenses(date);
 ### APIキー認証
 
 - すべてのAPIリクエストに`X-API-Key`ヘッダーが必要
+- APIキーは`server/.env`の`API_KEY`で管理（Gitには含めない。未設定だとコンテナが起動しない）
 - 認証不要なパスは`app/middleware/auth.py`の`PUBLIC_PATHS`で定義
-  - `/health`, `/docs`, `/openapi.json`, `/sync/page`, `/sync/qr.png`, `/sync/url`, `/app`で始まるパス, `/favicon.ico`
+  - `/health`, `/docs`, `/openapi.json`, `/sync/page`, `/sync/qr.png`, `/sync/url`, `/favicon.ico`
   - OPTIONSリクエスト（CORSプリフライト）も認証不要
+  - このうち`/docs`, `/sync/page`, `/sync/qr.png`, `/sync/url`は、下記のLAN限定ミドルウェアにより外部（プロキシ経由）からは別途拒否される
 
 ### CORS設定
 
@@ -300,13 +305,15 @@ CREATE INDEX idx_expenses_date ON expenses(date);
   - `http://localhost:5173`
   - `http://127.0.0.1:5173`
 
-### LAN制限（オプション）
+### LAN限定ミドルウェア
 
-- 環境変数`ALLOW_SUBNETS`で`/sync`配下のエンドポイントにLAN制限を設定可能
-- 設定例: `ALLOW_SUBNETS=192.168.0.0/24,172.16.0.0/12`
-- 未設定の場合はLAN制限は無効
+- `/sync/page`, `/sync/qr.png`, `/sync/url`（APIキーを発行するページ）と`/docs`, `/redoc`, `/openapi.json`を、家のLAN・PC本体からのアクセスに限定する
+- プロキシ経由（Tailscale Funnel等。`X-Forwarded-For`等のヘッダーや`*.ts.net`のHost）のリクエストは、設定に関わらず常に拒否される
+  - `X-Forwarded-For`はクライアントが偽装できるため、IPの許可判定には使わず「付いていたら外部とみなして拒否する」安全側の判定にのみ使用
+- 環境変数`ALLOW_SUBNETS`を設定すると、プロキシ経由でないリクエストのうちIPが許可サブネットに含まれるものだけを通す（例: `ALLOW_SUBNETS=192.168.0.0/24,172.16.0.0/12`）
+- `ALLOW_SUBNETS`が未設定の場合、プロキシ経由でなければIPを問わず許可される（＝プロキシ検知のみで外部アクセスを防いでいる）
 - 実装は`app/middleware/lan_only.py`の`LanOnlyMiddleware`で提供
-- ループバックアドレス（127.0.0.1等）は開発用に自動的に許可される
+- ループバックアドレス（127.0.0.1等）は常に許可される
 
 ## トラブルシューティング
 

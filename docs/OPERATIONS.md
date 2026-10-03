@@ -50,40 +50,56 @@ docker compose exec -T db pg_dump -U household household > expenses_YYYY-MM-DD.s
 docker compose exec -T db psql -U household -d household < expenses_YYYY-MM-DD.sql
 ```
 
-### 自動バックアップ（PowerShellスクリプト）
+### 自動バックアップ（PowerShellスクリプト＋タスクスケジューラ）
 
 `server/backup_db.ps1` を実行すると、以下の処理が行われます：
 
-- OneDriveの `household-app-backup/db` ディレクトリにバックアップを保存
+- OneDriveの `household-app-backup/db` ディレクトリにバックアップを保存（Gitには含まれない）
 - 30日より古いSQLファイルを自動削除
 - ファイル名は `expenses_YYYY-MM-DD.sql` 形式
+- `household-db` コンテナが起動していない場合は、エラーにせずスキップし、その旨を `household-app-backup/backup.log` に記録する
+- 実行結果（成功・スキップ・失敗）はすべて `household-app-backup/backup.log` に記録される
 
 ```powershell
 cd server
 .\backup_db.ps1
 ```
 
-**注意**: バックアップは OneDrive に自動保存されます。定期的に実行することを推奨します。
+**毎日自動実行する設定**:
+
+```powershell
+cd server
+.\register_backup_task.ps1
+```
+
+Windowsのタスクスケジューラに `HouseholdApp-DbBackup` という名前のタスクが登録され、毎日12:00に実行されます。PCの電源を入れる自動化は行っていないため、PCが起動していない時間帯は単に実行されず、次にPCが起動したタイミングでは翌日の12:00まで待つ形になります（household-dbが起動していない場合は上記のとおりスキップされます）。
+
+- 状態確認: `Get-ScheduledTask -TaskName 'HouseholdApp-DbBackup' | Get-ScheduledTaskInfo`
+- 手動実行: `Start-ScheduledTask -TaskName 'HouseholdApp-DbBackup'`
+- 削除: `Unregister-ScheduledTask -TaskName 'HouseholdApp-DbBackup'`
+- 実行時刻を変更したい場合は `server/register_backup_task.ps1` 内の `New-ScheduledTaskTrigger -Daily -At "12:00"` を編集して再実行する（既存タスクは自動的に再登録される）
+
+**実行結果の確認**（ログファイル: `%USERPROFILE%\OneDrive\household-app-backup\backup.log`）:
+
+```powershell
+Get-Content "$env:USERPROFILE\OneDrive\household-app-backup\backup.log" -Tail 20
+```
+
+ログの各行は3パターン：
+
+| ログの内容 | 意味 |
+|---|---|
+| `OK: Backup saved to ...` | バックアップ成功 |
+| `SKIP: household-db is not running.` | サーバー未起動のため実行をスキップ（異常ではない） |
+| `ERROR: Backup failed - ...` | pg_dump自体が失敗（DB接続エラー等） |
+
+`SKIP`が続いていて困る場合は、サーバーを起動しておく時間帯にタスクの実行時刻（現在は12:00）を合わせるのが確実です。詳しいトラブル対応は [TROUBLESHOOTING.md](TROUBLESHOOTING.md) の「バックアップが失敗する・作成されない」を参照してください。
 
 ## 本番環境への反映手順
 
-フロントエンド（React）を修正した場合は、以下の手順で本番環境に反映します。
-
 ### フロントエンド修正時
 
-```bash
-# Reactを本番ビルド
-cd client
-npm run build
-
-# ビルド結果をサーバー側に反映
-cd ..
-xcopy client\dist server\static\dist /E /I /Y
-
-# APIコンテナを再起動（確実に反映させる）
-cd server
-docker compose restart api
-```
+`client/` を修正して `master` にpushすると、Vercelが自動的にビルド・デプロイします（`https://household-app.vercel.app`）。スマホは次回起動時に自動更新されます。サーバー側での作業は不要です。
 
 ### サーバー側のコード修正時
 
@@ -97,6 +113,8 @@ docker compose up -d --build
 ```
 
 ## データベース操作
+
+**注意**: DBのポート（5432）は`127.0.0.1`のみで待受しており、LANの他の機器からは接続できません。PC上から直接接続する場合は以下のように`docker compose exec`を使います。
 
 ### データベースに接続
 
@@ -210,11 +228,11 @@ docker compose exec db psql -U household -d household -c "SELECT pg_size_pretty(
    ```
 
 2. ネットワーク接続を確認
-   - PCとスマホが同じネットワークに接続されているか
-   - ファイアウォールの設定を確認
+   - Tailscale Funnelが有効か確認: `tailscale funnel status`
+   - PC側で `http://localhost:8000/health` にアクセスしてサーバーが起動しているか確認
 
 3. APIキーが正しいか確認
-   - サーバー側の `API_KEY` 環境変数（`docker-compose.yml`）
+   - サーバー側の `API_KEY`（`server/.env`）
    - クライアント側のAPIキー設定（localStorage）
    - QRコードを再読み取りして設定を更新
 

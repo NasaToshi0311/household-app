@@ -5,29 +5,28 @@ Household AppのAPIエンドポイントの詳細な仕様です。
 ## ベースURL
 
 - 開発環境: `http://localhost:8000`
-- 本番環境: `http://[PCのIP]:8000`
+- 本番環境: Tailscale Funnel経由のhttps URL（例: `https://pc2023.tail5d0b68.ts.net`）
 
 ## 認証
 
 すべてのAPIリクエスト（認証不要なパスを除く）には、`X-API-Key`ヘッダーが必要です。
 
 ```http
-X-API-Key: household-app-secret-key-2024
+X-API-Key: <server/.env の API_KEY の値>
 ```
 
 ### 認証不要なパス
 
-以下のパスは認証不要です：
+以下のパスは認証不要です。いずれも家のLAN・PC本体からのみアクセス可能で、Tailscale Funnel等のプロキシ経由（外部）からは開けません。
 
-- `GET /health`
-- `GET /docs`
-- `GET /openapi.json`
+- `GET /health`（これはLAN限定の対象外。どこからでも認証不要）
+- `GET /favicon.ico`（同上）
 - `GET /sync/page`
 - `GET /sync/qr.png`
 - `GET /sync/url`
-- `GET /app` で始まるパス（フロントエンド配信用）
-- `GET /favicon.ico`
 - `OPTIONS /*` (CORSプリフライト)
+
+`/docs`, `/redoc`, `/openapi.json` も同様にLAN限定で、外部からは開けません。
 
 ## エンドポイント一覧
 
@@ -35,7 +34,7 @@ X-API-Key: household-app-secret-key-2024
 
 #### POST /sync/expenses
 
-支出データの一括同期を行います。
+支出データの一括同期を行います（クライアント→サーバー）。
 
 **リクエスト**
 
@@ -99,7 +98,7 @@ X-API-Key: your-api-key
 ```bash
 curl -X POST http://localhost:8000/sync/expenses \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: household-app-secret-key-2024" \
+  -H "X-API-Key: your-api-key" \
   -d '{
     "items": [
       {
@@ -115,9 +114,62 @@ curl -X POST http://localhost:8000/sync/expenses \
   }'
 ```
 
+#### GET /sync/changes
+
+差分同期用: 前回同期以降にサーバー側で更新・削除されたデータを取得します（他端末での追加・編集・削除をこのスマホに反映するためのエンドポイント）。
+
+**リクエスト**
+
+```http
+GET /sync/changes?since=2024-01-15T00:00:00Z&limit=500&offset=0
+X-API-Key: your-api-key
+```
+
+**クエリパラメータ**
+
+- `since` (datetime, 任意): この時刻より後に更新されたデータのみ返す。省略時は全件（初回同期・全件再取得用）
+- `until` (datetime, 任意): ページング用の上限時刻。1ページ目のレスポンスの`until`をそのまま2ページ目以降のリクエストに渡す
+- `limit` (integer, 任意): 取得件数（1-1000、デフォルト: 500）
+- `offset` (integer, 任意): オフセット（0以上、デフォルト: 0）
+
+**レスポンス**
+
+```json
+{
+  "items": [
+    {
+      "client_uuid": "550e8400-e29b-41d4-a716-446655440000",
+      "date": "2024-01-15",
+      "amount": 1500,
+      "category": "食費",
+      "note": "ランチ",
+      "paid_by": "me",
+      "deleted": false
+    }
+  ],
+  "until": "2024-01-20T12:00:00Z"
+}
+```
+
+- `items` (array): 更新・削除されたアイテムの配列
+  - `deleted` (boolean): `true`の場合、論理削除されたデータ（クライアント側でも削除として反映する）
+- `until` (datetime): このレスポンスの取得上限時刻。次回の`since`に使う（クライアントは取りこぼし防止のため、実際には数分前にずらした値を保存する）
+
+**備考**
+
+- 論理削除済みのデータも`deleted: true`で返るため、他端末で削除した明細もこのエンドポイント経由で反映されます
+- `since`を省略すると全期間のデータを返します（初回同期時や、クライアント側で全件再取得したいときに使用）
+
+**curl例**
+
+```bash
+curl "http://localhost:8000/sync/changes?since=2024-01-15T00:00:00Z" \
+  -H "X-API-Key: your-api-key"
+```
+
 #### GET /sync/url
 
-同期用のURLとAPIキーを取得します（認証不要）。
+同期用のURLとAPIキーを取得します（認証不要、LAN限定）。
 
 **リクエスト**
 
@@ -129,12 +181,12 @@ GET /sync/url
 
 ```json
 {
-  "base_url": "http://192.168.1.100:8000",
-  "api_key": "household-app-secret-key-2024"
+  "base_url": "https://pc2023.tail5d0b68.ts.net",
+  "api_key": "your-api-key"
 }
 ```
 
-- `base_url` (string): APIのベースURL
+- `base_url` (string): APIのベースURL（`server/.env`の`PUBLIC_BASE_URL`、未設定ならLAN内IP）
 - `api_key` (string): APIキー
 
 **curl例**
@@ -145,7 +197,7 @@ curl http://localhost:8000/sync/url
 
 #### GET /sync/qr.png
 
-QRコード画像を生成します（認証不要）。
+QRコード画像を生成します（認証不要、LAN限定）。
 
 **リクエスト**
 
@@ -158,7 +210,7 @@ GET /sync/qr.png
 - Content-Type: `image/png`
 - QRコード画像（PNG形式）
 
-QRコードには、`https://household-app.vercel.app/?base_url={URL}&api_key={KEY}`形式のURLが含まれます。`base_url`パラメータには`http://[PCのIP]:8000`が、`api_key`パラメータにはAPIキーが含まれ、クライアント側で直接設定されます。一度のスキャンで全ての情報を取得できるため、追加のネットワークリクエストは不要です。
+QRコードには、`https://household-app.vercel.app/#base_url={URL}&api_key={KEY}`形式のURLが含まれます。`#`（フラグメント）に入れることで、APIキーがアクセスログに残らないようにしています。
 
 **curl例**
 
@@ -168,7 +220,7 @@ curl http://localhost:8000/sync/qr.png -o qr.png
 
 #### GET /sync/page
 
-QRコード表示用のHTMLページを返します（認証不要）。
+QRコード表示用のHTMLページを返します（認証不要、LAN限定）。
 
 **リクエスト**
 
@@ -222,7 +274,7 @@ X-API-Key: your-api-key
 
 ```bash
 curl "http://localhost:8000/summary?start=2024-01-01&end=2024-01-31" \
-  -H "X-API-Key: household-app-secret-key-2024"
+  -H "X-API-Key: your-api-key"
 ```
 
 #### GET /summary/by-category
@@ -255,7 +307,7 @@ X-API-Key: your-api-key
 
 ```bash
 curl "http://localhost:8000/summary/by-category?start=2024-01-01&end=2024-01-31" \
-  -H "X-API-Key: household-app-secret-key-2024"
+  -H "X-API-Key: your-api-key"
 ```
 
 #### GET /summary/by-payer
@@ -291,7 +343,7 @@ X-API-Key: your-api-key
 
 ```bash
 curl "http://localhost:8000/summary/by-payer?start=2024-01-01&end=2024-01-31" \
-  -H "X-API-Key: household-app-secret-key-2024"
+  -H "X-API-Key: your-api-key"
 ```
 
 #### GET /summary/expenses
@@ -331,7 +383,7 @@ X-API-Key: your-api-key
 
 ```bash
 curl "http://localhost:8000/summary/expenses?start=2024-01-01&end=2024-01-31&limit=50&offset=0" \
-  -H "X-API-Key: household-app-secret-key-2024"
+  -H "X-API-Key: your-api-key"
 ```
 
 ### 支出管理
@@ -375,7 +427,7 @@ X-API-Key: your-api-key
 
 ```bash
 curl "http://localhost:8000/expenses?month=2024-01" \
-  -H "X-API-Key: household-app-secret-key-2024"
+  -H "X-API-Key: your-api-key"
 ```
 
 #### DELETE /expenses/{id}
@@ -412,7 +464,7 @@ X-API-Key: your-api-key
 
 ```bash
 curl -X DELETE http://localhost:8000/expenses/1 \
-  -H "X-API-Key: household-app-secret-key-2024"
+  -H "X-API-Key: your-api-key"
 ```
 
 ### 統計
@@ -463,7 +515,7 @@ X-API-Key: your-api-key
 
 ```bash
 curl "http://localhost:8000/stats?month=2024-01" \
-  -H "X-API-Key: household-app-secret-key-2024"
+  -H "X-API-Key: your-api-key"
 ```
 
 ### ヘルスチェック
@@ -509,6 +561,7 @@ curl http://localhost:8000/health
 - `200 OK`: リクエスト成功
 - `400 Bad Request`: リクエストが不正（バリデーションエラーなど）
 - `401 Unauthorized`: 認証エラー（APIキーが不正または未設定）
+- `403 Forbidden`: LAN限定ページへの外部からのアクセス
 - `404 Not Found`: リソースが見つからない
 - `500 Internal Server Error`: サーバー内部エラー
 - `503 Service Unavailable`: サービスが利用不可（IPアドレス取得失敗など）
@@ -532,6 +585,16 @@ curl http://localhost:8000/health
 ```
 
 **対処法**: `X-API-Key`ヘッダーを正しく設定してください。QRコードを再読み取りしてAPIキーを更新してください。
+
+#### 403 Forbidden
+
+```json
+{
+  "detail": "LAN only"
+}
+```
+
+**対処法**: `/sync/page`, `/sync/qr.png`, `/sync/url`, `/docs`等は、家のLAN・PC本体からのみアクセスできます。Tailscale Funnel経由の外部アクセスでは常に拒否されます。
 
 #### 400 Bad Request
 
@@ -566,4 +629,3 @@ curl http://localhost:8000/health
 
 - **[アーキテクチャ](architecture.md)**: システム設計の詳細
 - **[サーバー開発ガイド](../server/README.md)**: サーバー側の開発方法
-

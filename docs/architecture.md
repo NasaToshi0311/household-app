@@ -28,7 +28,7 @@ Household Appは、スマートフォンから支出を入力し、PC上のサ�
 │  │  └──────┬──────────┘                                │  │
 │  └─────────┼──────────────────────────────────────────┘  │
 └────────────┼──────────────────────────────────────────────┘
-             │ HTTP (同一ネットワーク)
+             │ HTTPS (Tailscale Funnel)
              │
 ┌────────────▼──────────────────────────────────────────────┐
 │                    PC（サーバー）                           │
@@ -177,6 +177,12 @@ syncExpenses() → POST /sync/expenses
     ↓
 markSynced(ok_uuids) → 成功したアイテムの status を "synced" に更新
     ↓
+fetchChanges(since) → GET /sync/changes（前回同期以降の差分を取得。初回・全件再取得時はsinceなしで全件）
+    ↓
+applyServerChanges(items) → IndexedDBに反映（deleted: true のアイテムはローカルからも削除）
+    ↓
+sync_cursor（次回のsince）を、取得上限時刻の5分前に設定して保存（取りこぼし防止、重複は内容比較で無視）
+    ↓
 画面更新
 ```
 
@@ -218,14 +224,18 @@ SummaryPage コンポーネント
 
 - `GET /sync/qr.png`
   - QRコード画像生成
-  - QRコードには `https://household-app.vercel.app/?base_url={URL}&api_key={KEY}` 形式のURLが含まれる
-  - `base_url` パラメータには `http://[PCのIP]:8000` が、`api_key` パラメータにはAPIキーが含まれる（URLエンコード済み）
+  - QRコードには `https://household-app.vercel.app/#base_url={URL}&api_key={KEY}` 形式のURLが含まれる（`#`に入れているのはAPIキーをアクセスログに残さないため）
+  - `base_url` パラメータには同期先URL（Tailscale FunnelのhttpsURLまたはLANのIP）が、`api_key` パラメータにはAPIキーが含まれる（URLエンコード済み）
   - 一度のスキャンで全ての情報を取得できるため、追加のネットワークリクエストは不要
-  - 認証不要（PUBLIC_PATHS）
+  - 認証不要（PUBLIC_PATHS）だが、LAN限定ミドルウェアにより外部（Tailscale Funnel経由等）からは開けない
 
 - `GET /sync/page`
   - QRコード表示用HTMLページ
-  - 認証不要（PUBLIC_PATHS）
+  - 認証不要（PUBLIC_PATHS）だが、LAN限定ミドルウェアにより外部からは開けない
+
+- `GET /sync/changes`
+  - 差分同期用: 前回同期以降に更新・削除されたデータを取得（他端末での変更をこのスマホに反映）
+  - 認証必要（`X-API-Key`）
 
 #### 集計関連
 
@@ -298,8 +308,8 @@ SummaryPage コンポーネント
 
 1. **QRコード生成**（サーバー側）
    - `GET /sync/qr.png` でQRコード画像を生成
-   - QRコードには `https://household-app.vercel.app/?base_url={URL}&api_key={KEY}` 形式のURLが含まれる
-   - `base_url` パラメータには `http://[PCのIP]:8000` が、`api_key` パラメータにはAPIキーが含まれる（URLエンコード済み）
+   - QRコードには `https://household-app.vercel.app/#base_url={URL}&api_key={KEY}` 形式のURLが含まれる
+   - `base_url` パラメータには同期先URL（`server/.env`の`PUBLIC_BASE_URL`、通常はTailscale FunnelのhttpsURL）が、`api_key` パラメータにはAPIキーが含まれる（URLエンコード済み）
 
 2. **QRコード読み取り**（クライアント側）
    - スマホのカメラでQRコードを読み取る
@@ -314,37 +324,47 @@ SummaryPage コンポーネント
 
 1. **APIキー認証**
    - すべてのAPIリクエストに`X-API-Key`ヘッダーが必要
-   - 環境変数`API_KEY`で設定（デフォルト: `household-app-secret-key-2024`）
-   - 認証不要なパス: `/health`, `/docs`, `/openapi.json`, `/sync/page`, `/sync/qr.png`, `/sync/url`, `/app`で始まるパス, `/favicon.ico`
+   - 環境変数`API_KEY`（`server/.env`）で設定。必須で、未設定だとコンテナが起動しない
+   - 認証不要なパス: `/health`, `/favicon.ico`, `/sync/page`, `/sync/qr.png`, `/sync/url`
    - OPTIONSリクエスト（CORSプリフライト）は認証不要
    - 認証失敗時はHTTP 401エラーを返す
 
-2. **CORS設定**
+2. **LAN限定ミドルウェア**（`app/middleware/lan_only.py`）
+   - APIキーを発行するページ（`/sync/page`, `/sync/qr.png`, `/sync/url`）と`/docs`, `/redoc`, `/openapi.json`は、家のLAN・PC本体からのみアクセス可能
+   - プロキシ経由（`X-Forwarded-For`等のヘッダーや`*.ts.net`のHost）のリクエストは、`allow_subnets`の設定に関わらず常に拒否される
+   - `X-Forwarded-For`等はクライアントが偽装できるため、IPの許可判定自体には使わない設計
+
+3. **外部公開のhttps化**（Tailscale Funnel）
+   - PCにTailscaleを入れ、`tailscale funnel --bg 8000`で外部公開用のhttps URLを発行
+   - iPhone（Safari / WebKit）がhttpsページからhttpの通信をブロックするため（mixed content）、同期先をhttpsにする必要があった
+   - 公開URLは証明書の公開ログに載るため秘密ではなく、データの保護はAPIキーで行う
+
+4. **CORS設定**
    - 環境変数`CORS_ORIGINS`で許可オリジンを指定（カンマ区切り）
    - デフォルト値（`CORS_ORIGINS`未設定時）:
      - `https://household-app.vercel.app`
      - `http://localhost:5173`
      - `http://127.0.0.1:5173`
    - `X-API-Key`ヘッダーを許可
+   - CORSミドルウェアは最後に追加（＝一番外側）。認証エラー(401)にもCORSヘッダーを付け、ブラウザに「接続エラー」ではなく「認証エラー」と表示させるため
 
-3. **DoS対策**
+5. **データベースのネットワーク分離**
+   - PostgreSQLのポート（5432）は`127.0.0.1`のみで待受し、LANの他の機器からは接続できない
+
+6. **DoS対策**
    - 同期リクエストの最大件数制限（1000件）
 
-4. **データバリデーション**
+7. **データバリデーション**
    - Pydanticスキーマで厳密な型チェック
    - 金額範囲: 0〜10億円
    - 文字列長制限
 
 ### 改善の余地
 
-1. **HTTPS**
-   - 現在はHTTP（ローカルネットワーク想定）
-   - 外部公開時はHTTPS必須
-
-2. **レート制限**
+1. **レート制限**
    - API呼び出し頻度の制限を検討
 
-3. **APIキーの強化**
+2. **APIキーの強化**
    - より強固なキー生成方法の検討
    - キーの定期ローテーション機能
 
@@ -380,9 +400,9 @@ npm run dev
 
 ### 本番環境
 
-- クライアント: `npm run build`でビルド後、静的ファイルを`server/static/dist/`にコピー
-- サーバー: Dockerコンテナとして実行（`/app`パスで静的ファイルを配信）
-- データベース: PostgreSQL（Dockerボリュームで永続化）
+- クライアント: `master`にpushすると、Vercelが自動デプロイ（`https://household-app.vercel.app`）
+- サーバー: Dockerコンテナとして実行し、Tailscale Funnel経由でhttps公開
+- データベース: PostgreSQL（Dockerボリュームで永続化、`backup_db.ps1`＋タスクスケジューラで日次バックアップ）
 
 ## 今後の拡張可能性
 
@@ -398,8 +418,4 @@ npm run dev
 3. **マルチデバイス対応**
    - 複数スマートフォンからの同期
    - データ競合解決
-
-4. **バックアップ機能**
-   - 自動バックアップ
-   - クラウドストレージ連携
 

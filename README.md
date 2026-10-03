@@ -5,26 +5,37 @@
 
 ## 概要
 
-- スマホから支出を入力
-- IndexedDBに一時保存
-- PC上のFastAPIへ同期
+- スマホ（PWA、Vercelでホスティング）から支出を入力
+- IndexedDBに全期間のデータを保持（オフラインでも入力・集計可能）
+- Tailscale Funnel経由のhttpsで、PC上のFastAPIへ同期
 - PostgreSQLに保存
 - 期間指定で集計・カテゴリ別表示
+
+## 構成
+
+```
+スマホ（PWA: https://household-app.vercel.app）
+   │ https
+   ▼
+Tailscale Funnel（https://pc2023.tail5d0b68.ts.net）
+   │
+   ▼
+PCの Docker: household-api (FastAPI :8000) + household-db (PostgreSQL)
+```
+
+- 同期先をhttpsにしているのは、iPhone（Safari / WebKit）がhttpsのページからhttpの通信をブロックするため（mixed content）。
+- 詳細は [CLAUDE.md](CLAUDE.md) を参照してください。
 
 ## 主な機能
 
 - 支出入力（スマホ）
   - 金額は整数のみ入力可能（小数点不可）
   - 入力値の検証機能（金額、日付、メモの文字数制限など）
-- 未送信データのローカル保存（IndexedDB）
-  - 日付範囲での効率的な検索（範囲クエリ対応）
-- オフライン対応（PWA）
-- 同期処理
+- IndexedDBへの全期間データ保持、オフライン対応（PWA）
+- 差分同期処理（未送信データの送信＋他端末での変更・削除の反映）
 - QRコードによるAPI URL・APIキー自動設定
 - APIキー認証（セキュリティ対策）
-- 期間指定集計
-- カテゴリ別集計
-- 明細一覧表示
+- 期間指定集計・カテゴリ別集計・明細一覧表示
 - 明細削除（論理削除）
 
 ## 技術構成
@@ -34,6 +45,7 @@
 - **Backend**: FastAPI
 - **DB**: PostgreSQL
 - **Container**: Docker / docker-compose
+- **外部公開**: Tailscale Funnel（https）
 
 ## 使い方
 
@@ -43,6 +55,14 @@
 2. 「入力」タブで支出を入力（オフライン可）
 3. 「同期する」ボタンを押してPCのAPIに送信
 4. 「集計」タブで期間を指定して集計・明細を確認
+
+### 初回セットアップ
+
+1. PCで `cd server && docker compose up -d`（事前に `server/.env` に `API_KEY` を設定しておく）
+2. PCのブラウザで `http://localhost:8000/sync/page` を開き、QRコードを表示
+3. スマホのカメラでQRコードを読み取ると、同期先URLとAPIキーが自動設定される
+
+詳細は [docs/SETUP.md](docs/SETUP.md) を参照してください。
 
 ## ドキュメント
 
@@ -73,48 +93,40 @@
 ## 注意点
 
 ### 使用方法
-- PCとスマホは同一ネットワーク（テザリング可）で接続する必要があります
+
+- PCとスマホはTailscale Funnel経由のhttpsで同期するため、同一ネットワークである必要はない（スマホがモバイル回線でも同期可能）
 - 初回はAPIのURLとAPIキーを設定してください（QRコード推奨）
-  - QRコードは `http://[PCのIP]:8000/sync/page` で表示できます
+  - QRコードは `/sync/page`（PC本体かLANからのみアクセス可）で表示できます
   - QRコードを読み取ると、自動的にAPI URLとAPIキーが設定されます
-  - QRコードには `base_url` と `api_key` パラメータが直接含まれており、一度のスキャンで全ての情報を取得できます
-  - QRコードのURL形式: `https://household-app.vercel.app/?base_url={URL}&api_key={KEY}`（`base_url`には`http://[PCのIP]:8000`が、`api_key`にはAPIキーが含まれる）
+  - QRコードのURL形式: `https://household-app.vercel.app/#base_url={URL}&api_key={KEY}`（`#`に入れているのは、APIキーをアクセスログに残さないため）
 - 金額は整数のみ入力可能です（小数点は使用できません）
 - 日付の入力範囲に制限はありませんが、無効な日付形式はエラーになります
 
 ### データ管理
-- APIキー認証により、同一ネットワーク内でも不正アクセスを防止しています
-- DBデータはローカル環境のため、定期的にバックアップを取ることを推奨します（`backup_db.ps1` を使用）
+
+- APIキー認証により、APIキーを知らない第三者からのアクセスを防止しています
+- スマホのIndexedDBには全期間のデータが保持され、オフラインでも集計可能です
+- DBデータはローカル環境のため、`server/backup_db.ps1` による定期バックアップを設定してください（[docs/OPERATIONS.md](docs/OPERATIONS.md) 参照）
 - IndexedDBは自動的にバージョン管理され、スキーマ変更時は自動的にアップグレードされます
 
 ### PWA機能
+
 - PWAとしてホーム画面に追加すると、オフラインでも入力可能です
 - 同期はオンライン時のみ実行可能です
 - localStorageの使用が制限されている環境（プライベートモードなど）では、設定の保存に失敗する可能性があります
-- サーバー側の環境変数設定（`docker-compose.yml`）:
-  - `API_KEY`: APIキー（**本番環境では必須**、未設定時は警告が出てデフォルト値 `household-app-secret-key-2024` を使用）
-  - `HOST_IP`: PCのIPアドレス（QRコード生成時に使用、推奨）
-  - `CORS_ORIGINS`: CORS許可オリジン（カンマ区切り、**本番環境では推奨**）
-  - `FRONTEND_URL`: フロントエンドのURL（QRコード生成時に使用、デフォルト: `https://household-app.vercel.app`）
-  - `ALLOW_SUBNETS`: LAN制限を有効にする場合の許可サブネット（カンマ区切り、例: `192.168.0.0/24,172.16.0.0/12`）
 
 ## セキュリティ
 
 - **APIキー認証**: すべてのAPIリクエストにAPIキーが必要です（`X-API-Key` ヘッダー）
-  - **本番環境では環境変数 `API_KEY` の設定を強く推奨**（未設定時は警告ログが出力されます）
-  - デフォルトのAPIキー: `household-app-secret-key-2024`（開発用）
-  - 認証不要なパス: `/health`, `/docs`, `/openapi.json`, `/sync/page`, `/sync/qr.png`, `/sync/url`, `/app`で始まるパス, `/favicon.ico`
+  - APIキーは `server/.env` の `API_KEY` で管理します（Gitには含めません）
+  - 認証不要なパス: `/health`, `/favicon.ico`, `/sync/page`, `/sync/qr.png`, `/sync/url`（いずれもLAN限定、後述）。それ以外（`/sync/expenses`, `/sync/changes` など）はAPIキー認証が必要です
 - **CORS設定**: 許可されたオリジンのみアクセス可能（環境変数 `CORS_ORIGINS` で設定、カンマ区切り）
-  - **本番環境では環境変数の設定を推奨**
-  - デフォルト値（未設定時）: `https://household-app.vercel.app`, `http://localhost:5173`, `http://127.0.0.1:5173`
-- **LAN制限**: オプションで `/sync` 配下のエンドポイントにLAN制限を設定可能（環境変数 `ALLOW_SUBNETS` で設定）
-  - 設定例: `ALLOW_SUBNETS=192.168.0.0/24,172.16.0.0/12`
-  - 未設定の場合はLAN制限は無効
+- **LAN限定**: APIキーを発行するページ（`/sync/page`, `/sync/qr.png`, `/sync/url`）と `/docs`, `/openapi.json` は、Tailscale Funnel等のプロキシ経由（外部）からは開けません。家のLAN・PC本体からのみアクセス可能です
+- **データベースのポート**: `server/docker-compose.yml` でDBのポートは `127.0.0.1` のみに待受を限定しており、LANの他の機器からは接続できません
 
 詳細は `docs/architecture.md` を参照してください。
 
 ## ライセンス・注意
 
 - 本アプリは個人利用を想定しています
-- APIキー認証により基本的なセキュリティ対策を実装していますが、HTTPS未対応です
-- 外部公開や商用利用には追加対策（HTTPS、より強固な認証等）が必要です
+- APIキー認証とTailscale Funnelのhttps化により基本的なセキュリティ対策を実装していますが、外部公開や商用利用には追加対策（より強固な認証、監査ログ等）が必要です

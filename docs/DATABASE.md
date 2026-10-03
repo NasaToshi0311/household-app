@@ -8,7 +8,7 @@ Household Appのデータベース構造の詳細です。
 - **ユーザー名**: `household`
 - **パスワード**: `household`（デフォルト）
 - **ホスト**: `localhost`（Dockerコンテナ内では`db`）
-- **ポート**: `5432`
+- **ポート**: `5432`（`127.0.0.1`限定で待受。LANの他機器からは接続不可）
 - **DBMS**: PostgreSQL 16
 
 ## テーブル構造
@@ -302,10 +302,15 @@ except Exception:
 # 手動バックアップ
 docker compose exec -T db pg_dump -U household household > backup_$(date +%Y-%m-%d).sql
 
-# 自動バックアップ（PowerShellスクリプト）
+# 自動バックアップ（PowerShellスクリプト、手動実行）
 cd server
 .\backup_db.ps1
+
+# 毎日自動実行するタスクをWindowsタスクスケジューラに登録（初回のみ）
+.\register_backup_task.ps1
 ```
+
+バックアップ先はOneDrive（`%USERPROFILE%\OneDrive\household-app-backup\db`）で、Gitには含まれません。30日より古いファイルは自動削除されます。詳細は [OPERATIONS.md](OPERATIONS.md) を参照してください。
 
 ### 復元
 
@@ -367,7 +372,7 @@ EXPLAIN ANALYZE SELECT * FROM expenses WHERE date >= '2024-01-01' AND date <= '2
 
 ### アクセス制御
 
-- データベースはDockerコンテナ内で実行され、外部から直接アクセスできません
+- データベースはDockerコンテナ内で実行され、ポートも`127.0.0.1`限定のため、PC以外（LANの他機器や外部）から直接アクセスできません
 - アプリケーション層（FastAPI）を通じてのみアクセス可能
 - APIキー認証により、不正なアクセスを防止
 
