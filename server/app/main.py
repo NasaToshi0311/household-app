@@ -9,7 +9,6 @@ from app.routers.sync_qr import router as sync_qr_router
 from app.routers.summary import router as summary_router
 from app.middleware.auth import APIKeyMiddleware
 from app.middleware.lan_only import LanOnlyMiddleware
-from fastapi.staticfiles import StaticFiles
 
 app = FastAPI() # FastAPIのインスタンスを作成
 
@@ -67,4 +66,3 @@ app.include_router(expenses_router) # 支出ルーターを追加する
 app.include_router(stats_router) # 統計ルーターを追加する
 app.include_router(sync_qr_router) # 同期QRルーターを追加する
 app.include_router(summary_router) # 要約ルーターを追加する
-app.mount("/app", StaticFiles(directory="static/dist", html=True), name="frontend")

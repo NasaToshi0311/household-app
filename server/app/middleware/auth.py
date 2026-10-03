@@ -26,7 +26,6 @@ PUBLIC_PATHS = [
     "/sync/page",
     "/sync/qr.png",
     "/sync/url",
-    "/app",
     "/favicon.ico",  # ブラウザが自動的にリクエストするfavicon
 ]
 
