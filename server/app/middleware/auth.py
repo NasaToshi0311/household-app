@@ -1,6 +1,7 @@
 import os
 import logging
-from fastapi import Request, HTTPException, status
+from fastapi import Request, status
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,11 @@ PUBLIC_PATHS = [
     "/favicon.ico",  # ブラウザが自動的にリクエストするfavicon
 ]
 
+def _unauthorized(detail: str) -> JSONResponse:
+    # BaseHTTPMiddleware内でHTTPExceptionをraiseすると500になるため、レスポンスを直接返す
+    return JSONResponse(status_code=status.HTTP_401_UNAUTHORIZED, content={"detail": detail})
+
+
 class APIKeyMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # OPTIONSリクエスト（CORSプリフライト）は認証不要
@@ -47,17 +53,11 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
         
         if not api_key:
             logger.warning(f"APIキーなし: {request.method} {request.url.path}")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="API key is missing. Please scan QR code to set API key."
-            )
+            return _unauthorized("API key is missing. Please scan QR code to set API key.")
         
         if api_key != API_KEY:
             logger.warning(f"APIキー不一致: {request.method} {request.url.path}")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid API key. Please scan QR code to set API key."
-            )
+            return _unauthorized("Invalid API key. Please scan QR code to set API key.")
         
         logger.info(f"認証成功: {request.method} {request.url.path}")
         return await call_next(request)

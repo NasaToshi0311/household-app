@@ -10,6 +10,7 @@ export type Expense = {
   op: "upsert" | "delete";
   status: "pending" | "synced";
   updated_at: string; // ISO string
+  on_server?: boolean; // 一度でもサーバーに保存されたか（削除方法の判定に使う）
 };
 
 // 後方互換性のため（旧pendingストア）
@@ -35,7 +36,7 @@ interface HouseholdDB extends DBSchema {
   };
   meta: {
     key: string;
-    value: { key: string; value: boolean };
+    value: { key: string; value: boolean | string };
   };
 }
 
@@ -123,9 +124,11 @@ export type ExpenseInput = {
 export async function upsertExpense(input: ExpenseInput): Promise<void> {
   const db = await dbPromise;
   const now = new Date().toISOString();
+  const existing = await db.get("expenses", input.client_uuid);
 
   const expense: Expense = {
     ...input,
+    on_server: existing ? isOnServer(existing) : false,
     op: "upsert",
     status: "pending",
     updated_at: now,
@@ -143,12 +146,25 @@ export async function getPendingExpenses(): Promise<Expense[]> {
   return index.getAll("pending");
 }
 
+function isOnServer(expense: Expense): boolean {
+  return !!expense.on_server || expense.status === "synced";
+}
+
 /**
- * 入力取り消し用の物理削除
+ * 明細を削除
+ * - サーバーに保存済みのデータ: 論理削除（次回同期でサーバーにも反映）
+ * - まだサーバーに送っていないデータ: その場で物理削除
  */
-export async function hardDeleteExpense(client_uuid: string): Promise<void> {
+export async function deleteExpense(client_uuid: string): Promise<void> {
   const db = await dbPromise;
-  await db.delete("expenses", client_uuid);
+  const expense = await db.get("expenses", client_uuid);
+  if (!expense) return;
+
+  if (isOnServer(expense)) {
+    await markDeleteExpense(client_uuid);
+  } else {
+    await db.delete("expenses", client_uuid);
+  }
 }
 
 /**
@@ -174,10 +190,12 @@ export async function markDeleteExpense(client_uuid: string): Promise<void> {
 
 /**
  * 同期成功したUUIDのステータスを"synced"に更新
+ * 送信中にローカルで編集されたデータ（updated_atが変わったもの）は pending のまま残す
  */
-export async function markSynced(okUuids: string[]): Promise<void> {
+export async function markSynced(sentItems: Expense[], okUuids: string[]): Promise<void> {
   if (okUuids.length === 0) return;
 
+  const sentUpdatedAt = new Map(sentItems.map((i) => [i.client_uuid, i.updated_at]));
   const db = await dbPromise;
   const tx = db.transaction("expenses", "readwrite");
   const store = tx.store;
@@ -185,10 +203,16 @@ export async function markSynced(okUuids: string[]): Promise<void> {
 
   for (const uuid of okUuids) {
     const expense = await store.get(uuid);
-    if (expense) {
+    if (!expense || expense.updated_at !== sentUpdatedAt.get(uuid)) continue;
+
+    if (expense.op === "delete") {
+      // サーバー側で論理削除済みなので、ローカルからは消してよい
+      await store.delete(uuid);
+    } else {
       await store.put({
         ...expense,
         status: "synced",
+        on_server: true,
         updated_at: now,
       });
     }
@@ -224,85 +248,121 @@ export async function getPendingCount(): Promise<number> {
   return index.count("pending");
 }
 
+export type ServerChangeItem = {
+  client_uuid: string;
+  date: string;
+  amount: number;
+  category: string;
+  note?: string | null;
+  paid_by: string;
+  deleted: boolean;
+};
+
 /**
- * サーバーから取得したデータをIndexedDBに保存（upsert）
- * client_uuidが存在する場合は既存データを更新、存在しない場合は新規追加
+ * サーバーから取得した差分をIndexedDBに反映
+ * - deleted=true のデータはローカルから削除（他の端末で削除された明細）
+ * - ローカルで未送信（pending）のデータは上書きしない
  */
-export async function saveExpensesFromServer(
-  serverItems: Array<{
-    id?: number;
-    client_uuid?: string;
-    date: string;
-    amount: number;
-    category: string;
-    note?: string | null;
-    paid_by?: string | null;
-  }>
-): Promise<void> {
-  if (serverItems.length === 0) return;
+export async function applyServerChanges(
+  serverItems: ServerChangeItem[]
+): Promise<{ updated: number; deleted: number }> {
+  if (serverItems.length === 0) return { updated: 0, deleted: 0 };
 
   const db = await dbPromise;
   const tx = db.transaction("expenses", "readwrite");
   const store = tx.store;
   const now = new Date().toISOString();
+  let updated = 0;
+  let deleted = 0;
 
   for (const item of serverItems) {
-    // client_uuidが必須（サーバーから取得したデータには必ず含まれる）
-    if (!item.client_uuid) {
-      console.warn("Skipping item without client_uuid:", item);
-      continue;
-    }
-
-    // 既存データを確認
     const existing = await store.get(item.client_uuid);
 
-    // 既存データがpending状態の場合は上書きしない（ローカルで未送信のデータを保護）
-    // 注意: 同じclient_uuidでサーバー側に更新があった場合でも、pending状態のデータは保護される
-    // これは、ユーザーが入力中のデータを誤って上書きするのを防ぐため
+    // ローカルで未送信のデータを保護（次回の同期でローカルの内容がサーバーに送られる）
     if (existing && existing.status === "pending") {
       continue;
     }
 
-    // サーバーから取得したデータを保存
-    const expense: Expense = {
+    if (item.deleted) {
+      if (existing) {
+        await store.delete(item.client_uuid);
+        deleted++;
+      }
+      continue;
+    }
+
+    const next: Expense = {
       client_uuid: item.client_uuid,
       date: item.date,
       amount: item.amount,
       category: item.category,
       note: item.note || undefined,
-      paid_by: (item.paid_by === "me" || item.paid_by === "her") ? item.paid_by : "me",
+      paid_by: item.paid_by === "her" ? "her" : "me",
       op: "upsert",
-      status: "synced", // サーバーから取得したデータは既に同期済み
+      status: "synced",
+      on_server: true,
       updated_at: now,
     };
 
-    await store.put(expense);
+    // 内容が同じなら書き込まない（自分が送信したデータが戻ってきた場合など）
+    if (
+      existing &&
+      existing.op === next.op &&
+      existing.date === next.date &&
+      existing.amount === next.amount &&
+      existing.category === next.category &&
+      (existing.note || undefined) === next.note &&
+      existing.paid_by === next.paid_by
+    ) {
+      continue;
+    }
+
+    await store.put(next);
+    updated++;
   }
 
   await tx.done;
+  return { updated, deleted };
 }
 
 /**
- * 指定日より古いデータを削除（2か月より古いデータをクリーンアップ）
+ * サーバーに存在しない同期済みデータをローカルから削除（全件取得時の整合用）
+ * 未送信（pending）のデータは削除しない
  */
-export async function deleteOldExpenses(olderThanDate: string): Promise<number> {
+export async function removeSyncedNotIn(serverUuids: Set<string>): Promise<number> {
   const db = await dbPromise;
   const tx = db.transaction("expenses", "readwrite");
-  const index = tx.store.index("by-date");
-  const range = IDBKeyRange.upperBound(olderThanDate, true); // olderThanDateより前（olderThanDateを含まない）
+  const synced = await tx.store.index("by-status").getAll("synced");
+  let removed = 0;
 
-  const oldItems = await index.getAll(range);
-  let deletedCount = 0;
-
-  for (const item of oldItems) {
-    // pending状態のデータは削除しない（未送信データを保護）
-    if (item.status === "pending") {
-      continue;
+  for (const item of synced) {
+    if (!serverUuids.has(item.client_uuid)) {
+      await tx.store.delete(item.client_uuid);
+      removed++;
     }
-    await tx.store.delete(item.client_uuid);
-    deletedCount++;
   }
 
   await tx.done;
-  return deletedCount;
+  return removed;
+}
+
+/**
+ * metaストアの値を取得
+ */
+export async function getMeta(key: string): Promise<string | null> {
+  const db = await dbPromise;
+  const row = await db.get("meta", key);
+  return typeof row?.value === "string" ? row.value : null;
+}
+
+/**
+ * metaストアに値を保存（nullなら削除）
+ */
+export async function setMeta(key: string, value: string | null): Promise<void> {
+  const db = await dbPromise;
+  if (value === null) {
+    await db.delete("meta", key);
+  } else {
+    await db.put("meta", { key, value });
+  }
 }

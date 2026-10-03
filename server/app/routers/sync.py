@@ -1,12 +1,13 @@
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
 import logging
 
 from app.db import get_db
 from app.models.expense import Expense
-from app.schemas.sync import SyncExpensesRequest
+from app.schemas.sync import ChangeItem, SyncChangesResponse, SyncExpensesRequest
 
 logger = logging.getLogger(__name__)
 
@@ -78,3 +79,42 @@ def sync_expenses(payload: SyncExpensesRequest, db: Session = Depends(get_db)):
         raise
 
     return {"ok_uuids": ok_uuids, "ng_uuids": ng_uuids}
+
+
+@router.get("/changes", response_model=SyncChangesResponse)
+def get_changes(
+    since: datetime | None = Query(None, description="この時刻より後に更新されたデータのみ返す（省略時は全件）"),
+    until: datetime | None = Query(None, description="ページング用の上限時刻（1ページ目のレスポンスの until をそのまま渡す）"),
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    """
+    差分同期用: 更新・削除されたデータを返す
+    論理削除済みのデータも deleted=True で返すので、他の端末で削除した明細もクライアントから消せる
+    """
+    if until is None:
+        until = db.execute(select(func.now())).scalar_one()
+
+    stmt = select(Expense).where(Expense.updated_at <= until)
+    if since is not None:
+        stmt = stmt.where(Expense.updated_at > since)
+    stmt = stmt.order_by(Expense.updated_at, Expense.id).limit(limit).offset(offset)
+
+    rows = db.execute(stmt).scalars().all()
+
+    return SyncChangesResponse(
+        items=[
+            ChangeItem(
+                client_uuid=r.client_uuid,
+                date=r.date,
+                amount=r.amount,
+                category=r.category,
+                note=r.note,
+                paid_by=r.paid_by,
+                deleted=r.deleted_at is not None,
+            )
+            for r in rows
+        ],
+        until=until,
+    )

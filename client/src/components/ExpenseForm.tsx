@@ -1,212 +1,244 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
-import type { PendingExpense } from "../db";
+import type { Expense, ExpenseInput } from "../db";
 import { payerLabel, type PaidBy } from "../constants/payer";
 import { CATEGORY_ORDER } from "../constants/category";
+import { addDays, formatDateLabel, todayStr } from "../utils/date";
+import * as S from "../ui/styles";
 
 type Props = {
-  onAdd: (item: PendingExpense) => Promise<void> | void;
+  /** 編集時は対象の明細を渡す（未指定なら新規入力） */
+  initial?: Expense | null;
+  onSubmit: (input: ExpenseInput) => Promise<void> | void;
+  onCancel?: () => void;
 };
 
-export default function ExpenseForm({ onAdd }: Props) {
-  const [amount, setAmount] = useState("");
-  const [category, setCategory] = useState("食費");
-  const [note, setNote] = useState("");
-  const [paidBy, setPaidBy] = useState<PaidBy>("me");
+const LS_LAST_PAID_BY = "household_last_paid_by";
 
-  async function handleAdd() {
-    if (!amount) {
-      alert("金額を入力してください");
+function loadLastPaidBy(): PaidBy {
+  try {
+    return localStorage.getItem(LS_LAST_PAID_BY) === "her" ? "her" : "me";
+  } catch {
+    return "me";
+  }
+}
+
+function saveLastPaidBy(value: PaidBy) {
+  try {
+    localStorage.setItem(LS_LAST_PAID_BY, value);
+  } catch {
+    // 保存できなくても入力には影響しない
+  }
+}
+
+export default function ExpenseForm({ initial, onSubmit, onCancel }: Props) {
+  const isEdit = !!initial;
+  const [date, setDate] = useState(initial?.date ?? todayStr());
+  const [amount, setAmount] = useState(initial ? String(initial.amount) : "");
+  const [category, setCategory] = useState<string>(initial?.category ?? CATEGORY_ORDER[0]);
+  const [note, setNote] = useState(initial?.note ?? "");
+  const [paidBy, setPaidBy] = useState<PaidBy>(initial?.paid_by ?? loadLastPaidBy());
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const amountRef = useRef<HTMLInputElement>(null);
+
+  const today = todayStr();
+  const yesterday = addDays(today, -1);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (submitting) return;
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      setError("日付を選択してください");
       return;
     }
 
-    // 小数点が含まれていないかチェック（整数のみ許可）
-    if (amount.includes(".") || amount.includes(",")) {
-      alert("金額は整数のみ入力してください（小数点は使用できません）");
+    if (!amount) {
+      setError("金額を入力してください");
+      amountRef.current?.focus();
       return;
     }
 
     const amountNum = Number(amount);
-    if (isNaN(amountNum) || amountNum <= 0) {
-      alert("金額は0より大きい数値を入力してください");
-      return;
-    }
-
-    // 整数であることを確認（Number()は小数点を許可するため）
-    if (!Number.isInteger(amountNum)) {
-      alert("金額は整数のみ入力してください");
+    if (!Number.isInteger(amountNum) || amountNum <= 0) {
+      setError("金額は1以上の整数で入力してください");
       return;
     }
 
     if (amountNum > 1000000000) {
-      alert("金額は10億円以下で入力してください");
+      setError("金額は10億円以下で入力してください");
       return;
     }
 
-    if (note && note.length > 200) {
-      alert("メモは200文字以内で入力してください");
+    if (note.length > 200) {
+      setError("メモは200文字以内で入力してください");
       return;
     }
 
-    // 確実に整数に変換（サーバー側はint型を要求）
-    const amountInt = Math.floor(amountNum);
+    setError(null);
+    setSubmitting(true);
+    try {
+      await onSubmit({
+        client_uuid: initial?.client_uuid ?? uuidv4(),
+        date,
+        amount: amountNum,
+        category,
+        note: note.trim() || undefined,
+        paid_by: paidBy,
+      });
 
-    const item: PendingExpense = {
-      client_uuid: uuidv4(),
-      date: new Date().toISOString().slice(0, 10),
-      amount: amountInt,
-      category,
-      note: note || undefined,
-      paid_by: paidBy,
-      op: "upsert",
-    };
-
-    await onAdd(item);
-    setAmount("");
-    setNote("");
+      if (!isEdit) {
+        saveLastPaidBy(paidBy);
+        // 続けて入力しやすいよう、日付・カテゴリ・支払者は残して金額とメモだけクリア
+        setAmount("");
+        setNote("");
+      }
+    } finally {
+      setSubmitting(false);
+    }
   }
 
+  const fieldStyle: React.CSSProperties = { ...S.input, padding: 14, marginBottom: 12 };
+
+  const chip = (selected: boolean): React.CSSProperties => ({
+    ...S.btn,
+    padding: "10px 4px",
+    fontSize: 14,
+    background: selected ? "#16a34a" : "#ffffff",
+    color: selected ? "#ffffff" : "#1f2937",
+    border: selected ? "2px solid #16a34a" : "2px solid #e5e7eb",
+  });
+
   return (
-    <>
-      <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16, color: "#1f2937" }}>入力</h2>
+    <form onSubmit={handleSubmit} noValidate>
+      <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16, color: "#1f2937" }}>
+        {isEdit ? "明細を編集" : "入力"}
+      </h2>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          aria-label="日付"
+          style={{ ...S.input, padding: 12, flex: 1, minWidth: 0 }}
+        />
+        <button type="button" onClick={() => setDate(today)} style={chipSmall(date === today)}>
+          今日
+        </button>
+        <button type="button" onClick={() => setDate(yesterday)} style={chipSmall(date === yesterday)}>
+          昨日
+        </button>
+      </div>
+      {date && date !== today && date !== yesterday && /^\d{4}-\d{2}-\d{2}$/.test(date) && (
+        <div style={{ ...S.muted, marginTop: -6, marginBottom: 12 }}>{formatDateLabel(date)} の支出として登録します</div>
+      )}
 
       <input
+        ref={amountRef}
         type="number"
         step="1"
         min="1"
         max="1000000000"
-        placeholder="金額"
+        placeholder="金額（円）"
         value={amount}
         onChange={(e) => {
-          // 小数点入力を防ぐ（step="1"と組み合わせて）
-          const value = e.target.value;
-          // 空文字列は許可
-          if (value === "") {
-            setAmount("");
-            return;
-          }
           // 小数点やカンマを除去（整数のみ許可）
-          const sanitized = value.replace(/[.,]/g, "");
-          setAmount(sanitized);
+          setAmount(e.target.value.replace(/[.,]/g, ""));
+          setError(null);
         }}
         inputMode="numeric"
-        style={{ 
-          width: "100%", 
-          marginBottom: 12, 
-          padding: 14, 
-          borderRadius: 12, 
-          border: "2px solid #e5e7eb",
-          fontSize: 16, /* iOS Safariで自動ズームを防ぐため16px以上 */
-          color: "#1f2937",
-          transition: "border-color 0.2s",
-          WebkitAppearance: "none",
-          appearance: "none",
-        }}
+        enterKeyHint="done"
+        aria-label="金額"
+        style={{ ...fieldStyle, fontSize: 20, fontWeight: 700 }}
       />
 
-      <select
-        value={category}
-        onChange={(e) => setCategory(e.target.value)}
-        style={{ 
-          width: "100%", 
-          marginBottom: 12, 
-          padding: 14, 
-          borderRadius: 12, 
-          border: "2px solid #e5e7eb",
-          fontSize: 15,
-          background: "#fff",
-          color: "#1f2937",
-          cursor: "pointer",
-          transition: "border-color 0.2s",
-        }}
+      <div
+        role="radiogroup"
+        aria-label="カテゴリ"
+        style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 12 }}
       >
         {CATEGORY_ORDER.map((cat) => (
-          <option key={cat} value={cat}>
+          <button
+            key={cat}
+            type="button"
+            role="radio"
+            aria-checked={category === cat}
+            onClick={() => setCategory(cat)}
+            style={chip(category === cat)}
+          >
             {cat}
-          </option>
+          </button>
         ))}
-      </select>
+        {/* 定義外のカテゴリ（過去データ）を編集する場合も選択状態を保てるように表示 */}
+        {!CATEGORY_ORDER.includes(category as (typeof CATEGORY_ORDER)[number]) && (
+          <button type="button" role="radio" aria-checked style={chip(true)}>
+            {category}
+          </button>
+        )}
+      </div>
 
       <input
         placeholder="メモ（任意）"
         value={note}
         onChange={(e) => setNote(e.target.value)}
         maxLength={200}
-        style={{ 
-          width: "100%", 
-          marginBottom: 12, 
-          padding: 14, 
-          borderRadius: 12, 
-          border: "2px solid #e5e7eb",
-          fontSize: 16, /* iOS Safariで自動ズームを防ぐため16px以上 */
-          color: "#1f2937",
-          transition: "border-color 0.2s",
-          WebkitAppearance: "none",
-          appearance: "none",
-        }}
+        enterKeyHint="done"
+        aria-label="メモ"
+        style={fieldStyle}
       />
 
-      <div style={{ marginBottom: 16, display: "flex", gap: 16, alignItems: "center" }}>
-        <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-          <input 
-            type="radio" 
-            checked={paidBy === "me"} 
-            onChange={() => setPaidBy("me")}
-            style={{ width: 18, height: 18, cursor: "pointer" }}
-          />
-          <span style={{ fontSize: 15, color: "#374151", fontWeight: 500 }}>{payerLabel.me}</span>
-        </label>
-        <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-          <input 
-            type="radio" 
-            checked={paidBy === "her"} 
-            onChange={() => setPaidBy("her")}
-            style={{ width: 18, height: 18, cursor: "pointer" }}
-          />
-          <span style={{ fontSize: 15, color: "#374151", fontWeight: 500 }}>{payerLabel.her}</span>
-        </label>
+      <div
+        role="radiogroup"
+        aria-label="支払者"
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}
+      >
+        {(Object.keys(payerLabel) as PaidBy[]).map((p) => (
+          <button
+            key={p}
+            type="button"
+            role="radio"
+            aria-checked={paidBy === p}
+            onClick={() => setPaidBy(p)}
+            style={chip(paidBy === p)}
+          >
+            {payerLabel[p]}
+          </button>
+        ))}
       </div>
 
-      <button 
-        onClick={handleAdd} 
-        style={{ 
-          width: "100%", 
-          padding: 14, 
-          borderRadius: 12,
-          background: "#16a34a",
-          color: "#ffffff",
-          border: "2px solid #16a34a",
-          fontSize: 16,
-          fontWeight: 700,
-          cursor: "pointer",
-          boxShadow: "0 2px 8px rgba(22, 163, 74, 0.3)",
-          transition: "all 0.2s",
-          WebkitTapHighlightColor: "rgba(0, 0, 0, 0.1)",
-          touchAction: "manipulation",
-          WebkitUserSelect: "none",
-          userSelect: "none",
-        }}
-        onMouseOver={(e) => {
-          e.currentTarget.style.transform = "translateY(-1px)";
-          e.currentTarget.style.boxShadow = "0 4px 12px rgba(22, 163, 74, 0.4)";
-          e.currentTarget.style.background = "#15803d";
-        }}
-        onMouseOut={(e) => {
-          e.currentTarget.style.transform = "translateY(0)";
-          e.currentTarget.style.boxShadow = "0 2px 8px rgba(22, 163, 74, 0.3)";
-          e.currentTarget.style.background = "#16a34a";
-        }}
-        onTouchStart={(e) => {
-          e.currentTarget.style.transform = "scale(0.98)";
-          e.currentTarget.style.opacity = "0.9";
-        }}
-        onTouchEnd={(e) => {
-          e.currentTarget.style.transform = "scale(1)";
-          e.currentTarget.style.opacity = "1";
-        }}
-      >
-        追加
-      </button>
-    </>
+      {error && (
+        <div style={{ ...S.warningBox, marginBottom: 12, fontSize: 14 }} role="alert">
+          {error}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 8 }}>
+        {onCancel && (
+          <button type="button" onClick={onCancel} style={{ ...S.btn, padding: 14, flex: 1 }}>
+            キャンセル
+          </button>
+        )}
+        <button
+          type="submit"
+          disabled={submitting}
+          style={{ ...S.btnPrimary, padding: 14, fontSize: 16, flex: 2, opacity: submitting ? 0.6 : 1 }}
+        >
+          {isEdit ? "更新する" : "追加"}
+        </button>
+      </div>
+    </form>
   );
+}
+
+function chipSmall(selected: boolean): React.CSSProperties {
+  return {
+    ...S.btn,
+    padding: "10px 12px",
+    flexShrink: 0,
+    background: selected ? "#f0fdf4" : "#ffffff",
+    color: selected ? "#16a34a" : "#1f2937",
+    border: selected ? "2px solid #16a34a" : "2px solid #e5e7eb",
+  };
 }

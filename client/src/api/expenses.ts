@@ -1,37 +1,30 @@
 import { fetchWithTimeout } from "./fetch.ts";
-import type { Expense, PendingExpense } from "../db";
+import type { Expense, PendingExpense, ServerChangeItem } from "../db";
 import { getApiConfig, handleApiError } from "../utils/api";
-import { getRecentMonthsRange } from "../utils/date";
-
-export type ServerExpenseItem = {
-  id?: number;
-  client_uuid?: string;
-  date: string;
-  amount: number;
-  category: string;
-  note?: string | null;
-  paid_by?: string | null;
-};
 
 const DEFAULT_TIMEOUT_MS = 15000;
-const MAX_PAGE_LIMIT = 200;
+const CHANGES_PAGE_LIMIT = 500;
 
 /**
- * サーバーから直近Nか月のデータを取得
+ * サーバーから差分（since以降に更新・削除されたデータ）を取得
+ * sinceを省略すると全件を取得する
+ * @returns items: 変更データ / until: 今回の取得範囲の上限時刻（次回のsinceの基準）
  */
-export async function fetchRecentExpenses(months: number = 2): Promise<ServerExpenseItem[]> {
+export async function fetchChanges(
+  since: string | null
+): Promise<{ items: ServerChangeItem[]; until: string }> {
   const { apiUrl, headers } = getApiConfig();
-  const { start, end } = getRecentMonthsRange(months);
 
-  const allItems: ServerExpenseItem[] = [];
+  const allItems: ServerChangeItem[] = [];
+  let until: string | null = null;
   let offset = 0;
 
-  // ページネーションで全件取得
+  // ページネーションで全件取得（2ページ目以降は1ページ目のuntilで範囲を固定）
   while (true) {
-    const url = new URL(`${apiUrl}/summary/expenses`);
-    url.searchParams.set("start", start);
-    url.searchParams.set("end", end);
-    url.searchParams.set("limit", MAX_PAGE_LIMIT.toString());
+    const url = new URL(`${apiUrl}/sync/changes`);
+    if (since) url.searchParams.set("since", since);
+    if (until) url.searchParams.set("until", until);
+    url.searchParams.set("limit", CHANGES_PAGE_LIMIT.toString());
     url.searchParams.set("offset", offset.toString());
 
     const res = await fetchWithTimeout(
@@ -45,17 +38,16 @@ export async function fetchRecentExpenses(months: number = 2): Promise<ServerExp
       handleApiError(res, text);
     }
 
-    const items: ServerExpenseItem[] = await res.json();
-    if (items.length === 0) break;
-
-    allItems.push(...items);
-    offset += MAX_PAGE_LIMIT;
+    const data: { items: ServerChangeItem[]; until: string } = await res.json();
+    until = data.until;
+    allItems.push(...data.items);
+    offset += CHANGES_PAGE_LIMIT;
 
     // 取得件数がlimit未満なら最後のページ
-    if (items.length < MAX_PAGE_LIMIT) break;
+    if (data.items.length < CHANGES_PAGE_LIMIT) break;
   }
 
-  return allItems;
+  return { items: allItems, until: until! };
 }
 
 /**

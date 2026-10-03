@@ -1,446 +1,256 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
-import ConfirmDialog from "../components/ConfirmDialog";
+import { useEffect, useMemo, useState } from "react";
 import { payerLabel } from "../constants/payer";
 import { sortCategoriesByOrder } from "../constants/category";
-import { getExpensesByRange, markDeleteExpense, type Expense } from "../db";
-import { formatDate, startOfMonth, endOfMonth } from "../utils/date";
+import { getExpensesByRange, type Expense } from "../db";
+import { addDays, formatDateLabel, formatDateTimeLabel, monthRange, todayStr } from "../utils/date";
+import * as S from "../ui/styles";
 
-type Summary = { start: string; end: string; total: number };
-type ByCategory = { category: string; total: number };
-type ByPayer = { paid_by: string | null; total: number };
+type Props = {
+  /** データが変わるたびに増える値（同期・編集・削除後に再集計するため） */
+  dataVersion: number;
+  lastSyncedAt: string | null;
+  onEdit: (expense: Expense) => void;
+  onDelete: (expense: Expense) => void;
+};
 
-export default function SummaryPage() {
-  const today = useMemo(() => new Date(), []);
-  const [start, setStart] = useState<string>(formatDate(startOfMonth(today)));
-  const [end, setEnd] = useState<string>(formatDate(endOfMonth(today)));
-  const [expenseLimit, setExpenseLimit] = useState<number>(20);
+type Breakdown = { key: string; label: string; total: number };
 
-  const [loading, setLoading] = useState(false);
+const PAGE_SIZE = 50;
+
+function sum(items: Expense[]) {
+  return items.reduce((acc, e) => acc + e.amount, 0);
+}
+
+function yen(n: number) {
+  return `¥${n.toLocaleString("ja-JP")}`;
+}
+
+export default function SummaryPage({ dataVersion, lastSyncedAt, onEdit, onDelete }: Props) {
+  const [mode, setMode] = useState<"month" | "custom">("month");
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [customStart, setCustomStart] = useState(() => monthRange(new Date()).start);
+  const [customEnd, setCustomEnd] = useState(() => todayStr());
+
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [prevTotal, setPrevTotal] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [summary, setSummary] = useState<Summary | null>(null);
-  const [byCategory, setByCategory] = useState<ByCategory[]>([]);
-  const [byPayer, setByPayer] = useState<ByPayer[]>([]);
-  const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
   const [filterPayer, setFilterPayer] = useState<string | null>(null);
-  const [confirmDialog, setConfirmDialog] = useState<{
-    message: string;
-    onConfirm: () => void;
-  } | null>(null);
+  // 期間やフィルタを変えたら表示件数を戻すため、条件ごとに件数を持つ
+  const [paging, setPaging] = useState({ key: "", count: PAGE_SIZE });
 
-  // ローカルデータから集計を計算
-  const calculateLocalSummary = useCallback(async () => {
-    // 日付形式のバリデーション
-    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
-    if (!datePattern.test(start) || !datePattern.test(end)) {
-      setError("日付の形式が正しくありません（YYYY-MM-DD形式で入力してください）");
-      return;
-    }
+  const monthBase = useMemo(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth() + monthOffset, 1);
+  }, [monthOffset]);
 
-    // 有効な日付かチェック
-    const startDate = new Date(start);
-    const endDate = new Date(end);
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-      setError("無効な日付が入力されています");
-      return;
-    }
+  const { start, end } = mode === "month" ? monthRange(monthBase) : { start: customStart, end: customEnd };
 
-    // 日付範囲のバリデーション
-    if (start > end) {
-      setError("開始日は終了日より前である必要があります");
-      return;
-    }
+  // 期間・データ変更時に再集計
+  useEffect(() => {
+    let cancelled = false;
 
-    setLoading(true);
-    setError(null);
+    async function load() {
+      const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+      if (!datePattern.test(start) || !datePattern.test(end)) {
+        setError("日付を選択してください");
+        return;
+      }
+      if (start > end) {
+        setError("開始日は終了日より前にしてください");
+        return;
+      }
 
-    try {
-      // IndexedDBから期間で絞り込んだデータを取得
-      const filtered = await getExpensesByRange(start, end);
-
-      const total = filtered.reduce((sum, item) => sum + item.amount, 0);
-
-      const categoryMap = new Map<string, number>();
-      const payerMap = new Map<string | null, number>();
-
-      filtered.forEach((item) => {
-        categoryMap.set(item.category, (categoryMap.get(item.category) || 0) + item.amount);
-        payerMap.set(item.paid_by, (payerMap.get(item.paid_by) || 0) + item.amount);
-      });
-
-      const byCategory: ByCategory[] = sortCategoriesByOrder(
-        Array.from(categoryMap.entries()).map(([category, total]) => ({ category, total }))
-      );
-
-      const byPayer: ByPayer[] = Array.from(payerMap.entries())
-        .map(([paid_by, total]) => ({ paid_by, total }))
-        .sort((a, b) => b.total - a.total);
-
-      // 日付の降順（最新が上）でソート、同じ日付の場合はclient_uuidで降順
-      const expensesList: Expense[] = filtered
-        .sort((a, b) => {
-          const dateCompare = b.date.localeCompare(a.date);
-          if (dateCompare !== 0) return dateCompare;
-          return b.client_uuid.localeCompare(a.client_uuid);
-        });
-
-      setSummary({ start, end, total });
-      setByCategory(byCategory);
-      setByPayer(byPayer);
-      setAllExpenses(expensesList);
-    } catch (err: any) {
-      setError(err?.message ?? "エラー");
-    } finally {
-      setLoading(false);
-    }
-  }, [start, end, expenseLimit]);
-
-  async function deleteExpense(clientUuid: string) {
-    if (!clientUuid) return;
-
-    setConfirmDialog({
-      message: "この明細を削除しますか？\n\n削除後、次回同期時にサーバーに反映されます。",
-      onConfirm: async () => {
-        setLoading(true);
-        setError(null);
-        try {
-          await markDeleteExpense(clientUuid);
-          await calculateLocalSummary();
-        } catch (err: any) {
-          setError(err?.message ?? "削除エラー");
-        } finally {
-          setLoading(false);
-          setConfirmDialog(null);
+      try {
+        const items = await getExpensesByRange(start, end);
+        // 前月比（月表示のときのみ）
+        let prev: number | null = null;
+        if (mode === "month") {
+          const p = monthRange(monthBase, -1);
+          prev = sum(await getExpensesByRange(p.start, p.end));
         }
-      },
-    });
-  }
-
-  // 初期表示とstart/end変更時に集計
-  useEffect(() => {
-    calculateLocalSummary();
-  }, [calculateLocalSummary]);
-
-  // フィルタ適用
-  useEffect(() => {
-    let filtered = [...allExpenses];
-
-    if (filterCategory) {
-      filtered = filtered.filter((e) => e.category === filterCategory);
+        if (cancelled) return;
+        setError(null);
+        setExpenses(items);
+        setPrevTotal(prev);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "集計に失敗しました");
+      }
     }
 
-    if (filterPayer) {
-      filtered = filtered.filter((e) => e.paid_by === filterPayer);
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [start, end, mode, monthBase, dataVersion]);
+
+  const listKey = `${start}|${end}|${filterCategory}|${filterPayer}`;
+  const visibleCount = paging.key === listKey ? paging.count : PAGE_SIZE;
+
+  const total = useMemo(() => sum(expenses), [expenses]);
+
+  // カテゴリ別は支払者フィルタを、支払者別はカテゴリフィルタを反映して集計（組み合わせて絞り込める）
+  const byCategory = useMemo<Breakdown[]>(() => {
+    const map = new Map<string, number>();
+    expenses
+      .filter((e) => !filterPayer || e.paid_by === filterPayer)
+      .forEach((e) => map.set(e.category, (map.get(e.category) ?? 0) + e.amount));
+    return sortCategoriesByOrder(
+      Array.from(map, ([category, t]) => ({ category, total: t }))
+    ).map((c) => ({ key: c.category, label: c.category, total: c.total }));
+  }, [expenses, filterPayer]);
+
+  const byPayer = useMemo<Breakdown[]>(() => {
+    const map = new Map<string, number>();
+    expenses
+      .filter((e) => !filterCategory || e.category === filterCategory)
+      .forEach((e) => map.set(e.paid_by, (map.get(e.paid_by) ?? 0) + e.amount));
+    return Array.from(map, ([paid_by, t]) => ({
+      key: paid_by,
+      label: payerLabel[paid_by as keyof typeof payerLabel] ?? paid_by,
+      total: t,
+    })).sort((a, b) => b.total - a.total);
+  }, [expenses, filterCategory]);
+
+  const filtered = useMemo(() => {
+    return expenses
+      .filter((e) => !filterCategory || e.category === filterCategory)
+      .filter((e) => !filterPayer || e.paid_by === filterPayer)
+      .sort((a, b) => b.date.localeCompare(a.date) || b.updated_at.localeCompare(a.updated_at));
+  }, [expenses, filterCategory, filterPayer]);
+
+  const filteredTotal = useMemo(() => sum(filtered), [filtered]);
+  const isFiltered = !!(filterCategory || filterPayer);
+
+  // 日付ごとにまとめる（表示件数分のみ）。日ごとの合計は表示外の明細も含めて計算
+  const dayGroups = useMemo(() => {
+    const dayTotals = new Map<string, number>();
+    filtered.forEach((e) => dayTotals.set(e.date, (dayTotals.get(e.date) ?? 0) + e.amount));
+
+    const groups: { date: string; total: number; items: Expense[] }[] = [];
+    for (const e of filtered.slice(0, visibleCount)) {
+      const last = groups[groups.length - 1];
+      if (last && last.date === e.date) {
+        last.items.push(e);
+      } else {
+        groups.push({ date: e.date, total: dayTotals.get(e.date) ?? 0, items: [e] });
+      }
     }
+    return groups;
+  }, [filtered, visibleCount]);
 
-    // 日付の降順（最新が上）でソート、同じ日付の場合はclient_uuidで降順
-    filtered.sort((a, b) => {
-      const dateCompare = b.date.localeCompare(a.date);
-      if (dateCompare !== 0) return dateCompare;
-      return b.client_uuid.localeCompare(a.client_uuid);
-    });
-
-    setExpenses(filtered.slice(0, expenseLimit));
-  }, [allExpenses, filterCategory, filterPayer, expenseLimit]);
-
-  // カテゴリフィルタを設定
-  const handleCategoryClick = (category: string) => {
-    if (filterCategory === category) {
-      setFilterCategory(null);
-    } else {
-      setFilterCategory(category);
-      setFilterPayer(null); // 支払者フィルタをクリア
-    }
-  };
-
-  // 支払者フィルタを設定
-  const handlePayerClick = (paid_by: string | null) => {
-    if (filterPayer === paid_by) {
-      setFilterPayer(null);
-    } else {
-      setFilterPayer(paid_by);
-      setFilterCategory(null); // カテゴリフィルタをクリア
-    }
-  };
-
-  // フィルタをクリア
-  const clearFilters = () => {
-    setFilterCategory(null);
-    setFilterPayer(null);
-  };
-
-  function setThisMonth() {
-    const d = new Date();
-    setStart(formatDate(startOfMonth(d)));
-    setEnd(formatDate(endOfMonth(d)));
+  function setQuickRange(kind: "7d" | "30d" | "year") {
+    const today = todayStr();
+    if (kind === "7d") setCustomStart(addDays(today, -6));
+    if (kind === "30d") setCustomStart(addDays(today, -29));
+    if (kind === "year") setCustomStart(`${today.slice(0, 4)}-01-01`);
+    setCustomEnd(today);
   }
 
-  function setLastMonth() {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 1);
-    setStart(formatDate(startOfMonth(d)));
-    setEnd(formatDate(endOfMonth(d)));
-  }
-
-  function setLast7Days() {
-    const d = new Date();
-    const endD = new Date(d);
-    const startD = new Date(d);
-    startD.setDate(startD.getDate() - 6);
-    setStart(formatDate(startD));
-    setEnd(formatDate(endD));
-  }
-
-  const totalText = (summary?.total ?? 0).toLocaleString("ja-JP");
+  const monthLabel = `${monthBase.getFullYear()}年${monthBase.getMonth() + 1}月`;
+  const diff = prevTotal !== null ? total - prevTotal : null;
 
   return (
-    <div style={{ maxWidth: 520, margin: "0 auto", padding: 8, fontFamily: "system-ui" }}>
-      <h2 style={{ fontSize: 20, fontWeight: 800, marginBottom: 16, color: "#1f2937" }}>集計</h2>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 8,
-          marginBottom: 12,
-        }}
-      >
-        <div style={{ display: "grid", gap: 6 }}>
-          <label style={{ fontSize: 14, color: "#1f2937", fontWeight: 600 }}>開始日</label>
-          <input
-            type="date"
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
-            style={{
-              width: "100%",
-              padding: 12,
-              borderRadius: 12,
-              border: "2px solid #e5e7eb",
-              fontSize: 16, /* iOS Safariで自動ズームを防ぐため16px以上 */
-              color: "#1f2937",
-              transition: "border-color 0.2s",
-              WebkitAppearance: "none",
-              appearance: "none",
-            }}
-          />
-        </div>
-        <div style={{ display: "grid", gap: 6 }}>
-          <label style={{ fontSize: 14, color: "#1f2937", fontWeight: 600 }}>終了日</label>
-          <input
-            type="date"
-            value={end}
-            onChange={(e) => setEnd(e.target.value)}
-            style={{
-              width: "100%",
-              padding: 12,
-              borderRadius: 12,
-              border: "2px solid #e5e7eb",
-              fontSize: 16, /* iOS Safariで自動ズームを防ぐため16px以上 */
-              color: "#1f2937",
-              transition: "border-color 0.2s",
-              WebkitAppearance: "none",
-              appearance: "none",
-            }}
-          />
-        </div>
-
-        <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button onClick={setThisMonth} style={btnStyle}>
-            今月
-          </button>
-          <button onClick={setLastMonth} style={btnStyle}>
-            先月
-          </button>
-          <button onClick={setLast7Days} style={btnStyle}>
-            直近7日
-          </button>
-          <button
-            onClick={calculateLocalSummary}
-            style={{
-              ...btnStyle,
-              fontWeight: 700,
-              background: loading ? "#e5e7eb" : "#16a34a",
-              color: loading ? "#9ca3af" : "#ffffff",
-              border: loading ? "2px solid #d1d5db" : "2px solid #16a34a",
-              boxShadow: loading ? "none" : "0 2px 8px rgba(22, 163, 74, 0.3)",
-            }}
-            disabled={loading}
-          >
-            {loading ? "集計中..." : "集計する"}
-          </button>
-        </div>
+    <div style={{ maxWidth: 520, margin: "0 auto", fontFamily: "system-ui" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0, color: "#1f2937" }}>集計</h2>
+        <button
+          onClick={() => setMode(mode === "month" ? "custom" : "month")}
+          style={{ ...linkBtn }}
+        >
+          {mode === "month" ? "期間を指定する" : "月ごとの表示に戻る"}
+        </button>
       </div>
 
+      {mode === "month" ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <button onClick={() => setMonthOffset(monthOffset - 1)} style={navBtn} aria-label="前の月">
+            ◀
+          </button>
+          <div style={{ flex: 1, textAlign: "center" }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#1f2937" }}>{monthLabel}</div>
+            {monthOffset !== 0 && (
+              <button onClick={() => setMonthOffset(0)} style={{ ...linkBtn, fontSize: 12 }}>
+                今月に戻る
+              </button>
+            )}
+          </div>
+          <button onClick={() => setMonthOffset(monthOffset + 1)} style={navBtn} aria-label="次の月">
+            ▶
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+          <label style={labelStyle}>
+            開始日
+            <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} style={S.input} />
+          </label>
+          <label style={labelStyle}>
+            終了日
+            <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} style={S.input} />
+          </label>
+          <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={() => setQuickRange("7d")} style={S.btn}>直近7日</button>
+            <button onClick={() => setQuickRange("30d")} style={S.btn}>直近30日</button>
+            <button onClick={() => setQuickRange("year")} style={S.btn}>今年</button>
+          </div>
+        </div>
+      )}
+
       {error && (
-        <div
-          style={{
-            background: "#fee2e2",
-            border: "2px solid #ef4444",
-            padding: 14,
-            borderRadius: 12,
-            marginBottom: 16,
-            color: "#991b1b",
-            fontWeight: 500,
-          }}
-        >
+        <div style={{ ...S.warningBox, marginBottom: 12 }} role="alert">
           {error}
         </div>
       )}
 
       <div style={cardStyle}>
-        <div style={{ fontSize: 12, color: "#666" }}>
-          {start} 〜 {end}
+        <div style={{ fontSize: 12, color: "#6b7280" }}>
+          {formatDateLabel(start)} 〜 {formatDateLabel(end)}
         </div>
-        <div
-          style={{
-            fontSize: 32,
-            fontWeight: 800,
-            marginTop: 8,
-            color: "#1f2937",
-          }}
-        >
-          ¥{totalText}
+        <div style={{ fontSize: 32, fontWeight: 800, marginTop: 4, color: "#1f2937" }}>{yen(total)}</div>
+        <div style={{ fontSize: 13, color: "#6b7280", marginTop: 2, fontWeight: 500 }}>
+          合計（{expenses.length}件）
         </div>
-        <div style={{ fontSize: 13, color: "#6b7280", marginTop: 6, fontWeight: 500 }}>
-          合計（支出）
-        </div>
-      </div>
-
-      <div style={{ height: 12 }} />
-
-      <div style={cardStyle}>
-        <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16, color: "#1f2937" }}>
-          カテゴリ別
-        </div>
-        {byCategory.length === 0 ? (
-          <div style={{ color: "#9ca3af", fontSize: 14, fontStyle: "italic" }}>データなし</div>
-        ) : (
-          <div style={{ display: "grid", gap: 8 }}>
-            {byCategory.slice(0, 10).map((c) => {
-              const isSelected = filterCategory === c.category;
-              return (
-                <div
-                  key={c.category}
-                  onClick={() => handleCategoryClick(c.category)}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "12px 14px",
-                    borderRadius: 10,
-                    background: isSelected ? "#eff6ff" : "#f9fafb",
-                    border: isSelected ? "2px solid #3b82f6" : "1px solid #e5e7eb",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                  }}
-                >
-                  <div style={{ color: "#1f2937", fontWeight: 600, fontSize: 15 }}>{c.category}</div>
-                  <div
-                    style={{
-                      fontWeight: 800,
-                      fontSize: 16,
-                      color: "#16a34a",
-                      padding: "4px 10px",
-                      background: "#f0fdf4",
-                      borderRadius: 8,
-                      border: "1px solid #bbf7d0",
-                    }}
-                  >
-                    ¥{c.total.toLocaleString("ja-JP")}
-                  </div>
-                </div>
-              );
-            })}
+        {diff !== null && prevTotal !== null && prevTotal > 0 && (
+          <div style={{ fontSize: 13, marginTop: 6, fontWeight: 600, color: diff > 0 ? "#dc2626" : "#16a34a" }}>
+            先月より {yen(Math.abs(diff))} {diff > 0 ? "多い" : diff < 0 ? "少ない" : "（同じ）"}
+            <span style={{ color: "#6b7280", fontWeight: 500 }}>（先月 {yen(prevTotal)}）</span>
           </div>
         )}
+        <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 8 }}>
+          {lastSyncedAt
+            ? `最終同期 ${formatDateTimeLabel(lastSyncedAt)} 時点のデータ`
+            : "まだ同期していません。同期すると過去のデータも表示されます"}
+        </div>
       </div>
 
       <div style={{ height: 12 }} />
 
-      <div style={cardStyle}>
-        <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16, color: "#1f2937" }}>
-          支払者別
-        </div>
-        {byPayer.length === 0 ? (
-          <div style={{ color: "#9ca3af", fontSize: 14, fontStyle: "italic" }}>データなし</div>
-        ) : (
-          <div style={{ display: "grid", gap: 8 }}>
-            {byPayer.map((p) => {
-              const payerName =
-                p.paid_by && (p.paid_by === "me" || p.paid_by === "her")
-                  ? payerLabel[p.paid_by]
-                  : p.paid_by ?? "未設定";
-              const isSelected = filterPayer === p.paid_by;
-              return (
-                <div
-                  key={p.paid_by ?? "null"}
-                  onClick={() => handlePayerClick(p.paid_by)}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "12px 14px",
-                    borderRadius: 10,
-                    background: isSelected ? "#eff6ff" : "#f9fafb",
-                    border: isSelected ? "2px solid #3b82f6" : "1px solid #e5e7eb",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                  }}
-                >
-                  <div style={{ color: "#1f2937", fontWeight: 600, fontSize: 15 }}>{payerName}</div>
-                  <div
-                    style={{
-                      fontWeight: 800,
-                      fontSize: 16,
-                      color: "#16a34a",
-                      padding: "4px 10px",
-                      background: "#f0fdf4",
-                      borderRadius: 8,
-                      border: "1px solid #bbf7d0",
-                    }}
-                  >
-                    ¥{p.total.toLocaleString("ja-JP")}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      <BreakdownCard
+        title="カテゴリ別"
+        items={byCategory}
+        selected={filterCategory}
+        onSelect={(key) => setFilterCategory(filterCategory === key ? null : key)}
+      />
+
+      <div style={{ height: 12 }} />
+
+      <BreakdownCard
+        title="支払者別"
+        items={byPayer}
+        selected={filterPayer}
+        onSelect={(key) => setFilterPayer(filterPayer === key ? null : key)}
+      />
 
       <div style={{ height: 12 }} />
 
       <div style={cardStyle}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <div style={{ fontWeight: 700, fontSize: 16, color: "#1f2937" }}>
-            明細（{filterCategory || filterPayer ? `フィルタ適用中: ${expenses.length}件` : `最新${expenseLimit}件`}）
-          </div>
-          <select
-            value={expenseLimit}
-            onChange={(e) => setExpenseLimit(Number(e.target.value))}
-            style={{
-              padding: "6px 12px",
-              borderRadius: 8,
-              border: "2px solid #e5e7eb",
-              background: "#ffffff",
-              fontSize: 13,
-              fontWeight: 600,
-              color: "#1f2937",
-              cursor: "pointer",
-            }}
-          >
-            {[10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((num) => (
-              <option key={num} value={num}>
-                {num}件
-              </option>
-            ))}
-          </select>
+        <div style={{ fontWeight: 700, fontSize: 16, color: "#1f2937", marginBottom: 12 }}>
+          明細（{filtered.length}件）
         </div>
-        {(filterCategory || filterPayer) && (
+
+        {isFiltered && (
           <div
             style={{
               marginBottom: 12,
@@ -451,105 +261,194 @@ export default function SummaryPage() {
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
+              gap: 8,
             }}
           >
             <div style={{ fontSize: 13, color: "#1e40af", fontWeight: 500 }}>
-              {filterCategory && `カテゴリ: ${filterCategory}`}
-              {filterPayer && `支払者: ${filterPayer && (filterPayer === "me" || filterPayer === "her") ? payerLabel[filterPayer] : filterPayer ?? "未設定"}`}
+              {[
+                filterCategory && `カテゴリ: ${filterCategory}`,
+                filterPayer && `支払者: ${payerLabel[filterPayer as keyof typeof payerLabel] ?? filterPayer}`,
+              ]
+                .filter(Boolean)
+                .join(" / ")}
+              <div style={{ fontWeight: 700 }}>絞り込み合計 {yen(filteredTotal)}</div>
             </div>
             <button
-              onClick={clearFilters}
-              style={{
-                padding: "4px 12px",
-                borderRadius: 6,
-                border: "1px solid #3b82f6",
-                background: "#ffffff",
-                color: "#3b82f6",
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "all 0.2s",
+              onClick={() => {
+                setFilterCategory(null);
+                setFilterPayer(null);
               }}
+              style={{ ...S.btn, padding: "4px 12px", fontSize: 12, color: "#3b82f6", border: "1px solid #3b82f6" }}
             >
-              フィルタ解除
+              解除
             </button>
           </div>
         )}
-        {expenses.length === 0 ? (
+
+        {filtered.length === 0 ? (
           <div style={{ color: "#9ca3af", fontSize: 14, fontStyle: "italic" }}>データなし</div>
         ) : (
-          <div style={{ display: "grid", gap: 10 }}>
-            {expenses.map((e, idx) => {
-              return (
+          <div style={{ display: "grid", gap: 16 }}>
+            {dayGroups.map((g) => (
+              <div key={g.date}>
                 <div
-                  key={e.client_uuid ?? `${e.date}-${e.amount}-${e.category}-${idx}`}
                   style={{
-                    padding: 14,
-                    borderRadius: 12,
-                    background: "#ffffff",
-                    border: "1px solid #e5e7eb",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: "#4b5563",
+                    borderBottom: "1px solid #e5e7eb",
+                    paddingBottom: 4,
+                    marginBottom: 8,
                   }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
-                        {e.date}
-                      </div>
-                      <div style={{ fontWeight: 700, color: "#1f2937", marginBottom: 4 }}>
-                        {e.category}
-                      </div>
-                      {e.note ? (
-                        <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{e.note}</div>
-                      ) : null}
-                    </div>
-                    <div style={{ display: "grid", justifyItems: "end", gap: 8 }}>
-                      <div
-                        style={{
-                          fontWeight: 800,
-                          fontSize: 18,
-                          color: "#1f2937",
-                        }}
-                      >
-                        ¥{e.amount.toLocaleString("ja-JP")}
-                      </div>
-
-                      <button
-                        onClick={() => {
-                          deleteExpense(e.client_uuid);
-                        }}
-                        disabled={loading}
-                        style={{
-                          padding: "6px 12px",
-                          borderRadius: 8,
-                          border: "2px solid #ef4444",
-                          background: loading ? "#f3f4f6" : "#fee2e2",
-                          color: loading ? "#9ca3af" : "#dc2626",
-                          fontSize: 12,
-                          fontWeight: 600,
-                          opacity: loading ? 0.6 : 1,
-                          cursor: loading ? "not-allowed" : "pointer",
-                          transition: "all 0.2s",
-                        }}
-                      >
-                        削除
-                      </button>
-                    </div>
-                  </div>
+                  <span>{formatDateLabel(g.date)}</span>
+                  <span>{yen(g.total)}</span>
                 </div>
-              );
-            })}
+                <div style={{ display: "grid", gap: 8 }}>
+                  {g.items.map((e) => (
+                    <ExpenseRow key={e.client_uuid} expense={e} onEdit={onEdit} onDelete={onDelete} />
+                  ))}
+                </div>
+              </div>
+            ))}
+            {filtered.length > visibleCount && (
+              <button onClick={() => setPaging({ key: listKey, count: visibleCount + PAGE_SIZE })} style={{ ...S.btn, width: "100%" }}>
+                さらに表示（残り {filtered.length - visibleCount}件）
+              </button>
+            )}
           </div>
         )}
       </div>
+    </div>
+  );
+}
 
-      {confirmDialog && (
-        <ConfirmDialog
-          message={confirmDialog.message}
-          onConfirm={confirmDialog.onConfirm}
-          onCancel={() => setConfirmDialog(null)}
-        />
+function BreakdownCard({
+  title,
+  items,
+  selected,
+  onSelect,
+}: {
+  title: string;
+  items: Breakdown[];
+  selected: string | null;
+  onSelect: (key: string) => void;
+}) {
+  const total = items.reduce((acc, i) => acc + i.total, 0);
+
+  return (
+    <div style={cardStyle}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+        <div style={{ fontWeight: 700, fontSize: 16, color: "#1f2937" }}>{title}</div>
+        {items.length > 0 && <div style={{ fontSize: 11, color: "#9ca3af" }}>タップで絞り込み</div>}
+      </div>
+      {items.length === 0 ? (
+        <div style={{ color: "#9ca3af", fontSize: 14, fontStyle: "italic" }}>データなし</div>
+      ) : (
+        <div style={{ display: "grid", gap: 8 }}>
+          {items.map((c) => {
+            const isSelected = selected === c.key;
+            const pct = total > 0 ? Math.round((c.total / total) * 100) : 0;
+            return (
+              <button
+                key={c.key}
+                onClick={() => onSelect(c.key)}
+                aria-pressed={isSelected}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  background: isSelected ? "#eff6ff" : "#f9fafb",
+                  border: isSelected ? "2px solid #3b82f6" : "1px solid #e5e7eb",
+                  cursor: "pointer",
+                  font: "inherit",
+                  color: "#1f2937",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                  <span style={{ fontWeight: 600, fontSize: 15 }}>{c.label}</span>
+                  <span>
+                    <span style={{ fontSize: 12, color: "#6b7280", marginRight: 8 }}>{pct}%</span>
+                    <span style={{ fontWeight: 800, fontSize: 16 }}>{yen(c.total)}</span>
+                  </span>
+                </div>
+                <div style={{ height: 6, background: "#e5e7eb", borderRadius: 3, marginTop: 6, overflow: "hidden" }}>
+                  <div style={{ width: `${pct}%`, height: "100%", background: "#16a34a", borderRadius: 3 }} />
+                </div>
+              </button>
+            );
+          })}
+        </div>
       )}
+    </div>
+  );
+}
+
+function ExpenseRow({
+  expense: e,
+  onEdit,
+  onDelete,
+}: {
+  expense: Expense;
+  onEdit: (e: Expense) => void;
+  onDelete: (e: Expense) => void;
+}) {
+  return (
+    <div
+      onClick={() => onEdit(e)}
+      style={{
+        padding: 12,
+        borderRadius: 12,
+        background: "#ffffff",
+        border: "1px solid #e5e7eb",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+        cursor: "pointer",
+        display: "flex",
+        justifyContent: "space-between",
+        gap: 8,
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 700, color: "#1f2937" }}>
+          {e.category}
+          {e.status === "pending" && (
+            <span
+              style={{
+                marginLeft: 8,
+                fontSize: 11,
+                fontWeight: 600,
+                color: "#92400e",
+                background: "#fef3c7",
+                border: "1px solid #f59e0b",
+                borderRadius: 6,
+                padding: "1px 6px",
+              }}
+            >
+              未送信
+            </span>
+          )}
+        </div>
+        {e.note ? (
+          <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2, overflowWrap: "anywhere" }}>{e.note}</div>
+        ) : null}
+        <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>{payerLabel[e.paid_by]}</div>
+      </div>
+      <div style={{ display: "grid", justifyItems: "end", gap: 6 }}>
+        <div style={{ fontWeight: 800, fontSize: 17, color: "#1f2937" }}>{yen(e.amount)}</div>
+        <button
+          onClick={(ev) => {
+            ev.stopPropagation();
+            onDelete(e);
+          }}
+          style={{ ...S.btnDanger, padding: "4px 10px", fontSize: 12 }}
+        >
+          削除
+        </button>
+      </div>
     </div>
   );
 }
@@ -562,18 +461,26 @@ const cardStyle: React.CSSProperties = {
   boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
 };
 
-const btnStyle: React.CSSProperties = {
+const navBtn: React.CSSProperties = {
+  ...S.btn,
   padding: "10px 16px",
-  borderRadius: 12,
-  border: "2px solid #e5e7eb",
-  background: "#ffffff",
-  cursor: "pointer",
-  fontSize: 14,
+  fontSize: 16,
+};
+
+const linkBtn: React.CSSProperties = {
+  border: "none",
+  background: "transparent",
+  color: "#16a34a",
+  fontSize: 13,
   fontWeight: 600,
+  cursor: "pointer",
+  padding: 4,
+};
+
+const labelStyle: React.CSSProperties = {
+  display: "grid",
+  gap: 6,
+  fontSize: 14,
   color: "#1f2937",
-  transition: "all 0.2s",
-  WebkitTapHighlightColor: "rgba(0, 0, 0, 0.1)",
-  touchAction: "manipulation",
-  WebkitUserSelect: "none",
-  userSelect: "none",
+  fontWeight: 600,
 };

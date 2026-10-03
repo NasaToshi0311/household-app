@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from pydantic import BaseModel, Field, field_validator
 from typing import Literal
 
@@ -23,3 +23,19 @@ class SyncExpensesRequest(BaseModel):
         if len(v) > 1000:
             raise ValueError("Maximum 1000 items allowed per request")
         return v
+
+
+class ChangeItem(BaseModel):
+    client_uuid: str
+    date: date
+    amount: int
+    category: str
+    note: str | None = None
+    paid_by: str
+    deleted: bool  # 論理削除済みならTrue（クライアント側で削除する）
+
+
+class SyncChangesResponse(BaseModel):
+    items: list[ChangeItem]
+    # 今回の取得の上限時刻。ページングの2ページ目以降はこの値を until に渡す
+    until: datetime

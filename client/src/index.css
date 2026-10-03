@@ -83,12 +83,9 @@ body {
 
 /* Android Chrome用の追加最適化 */
 @media screen and (max-width: 768px) {
-  /* モバイル端末でのパフォーマンス最適化 */
-  * {
-    -webkit-transform: translateZ(0); /* ハードウェアアクセラレーション */
-    transform: translateZ(0);
-  }
-  
+  /* ※ 全要素への transform: translateZ(0) は position: fixed を親要素基準にしてしまい、
+     ダイアログや通知が画面外に表示されるため使わない */
+
   /* Android Chromeのアドレスバー問題を軽減 */
   body {
     min-height: 100vh;

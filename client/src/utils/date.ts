@@ -9,6 +9,22 @@ export function formatDate(date: Date): string {
 }
 
 /**
+ * 今日の日付（ローカルタイムゾーン）をYYYY-MM-DD形式で取得
+ * ※ toISOString() はUTCになるため、日本時間の0〜9時に前日の日付になってしまう
+ */
+export function todayStr(): string {
+  return formatDate(new Date());
+}
+
+/**
+ * YYYY-MM-DD形式の日付にN日加算した日付を返す
+ */
+export function addDays(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return formatDate(new Date(y, m - 1, d + days));
+}
+
+/**
  * 指定月の開始日を取得
  */
 export function startOfMonth(date: Date): Date {
@@ -23,28 +39,28 @@ export function endOfMonth(date: Date): Date {
 }
 
 /**
- * 直近Nか月の開始日と終了日を計算
- * @param months 取得する月数（デフォルト: 2）
- * @returns { start: string, end: string } YYYY-MM-DD形式の日付文字列
+ * 月の範囲（YYYY-MM-DD）を取得。offsetで前後の月にずらせる
  */
-export function getRecentMonthsRange(months: number = 2): { start: string; end: string } {
-  const today = new Date();
-  const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  // (N-1)か月前の1日を計算（例: 3月15日で2か月前 → 2月1日）
-  const startDate = new Date(today.getFullYear(), today.getMonth() - (months - 1), 1);
-  
-  return {
-    start: formatDate(startDate),
-    end: formatDate(endDate),
-  };
+export function monthRange(base: Date, offset: number = 0): { start: string; end: string } {
+  const d = new Date(base.getFullYear(), base.getMonth() + offset, 1);
+  return { start: formatDate(startOfMonth(d)), end: formatDate(endOfMonth(d)) };
 }
 
 /**
- * Nか月前の1日を取得
+ * YYYY-MM-DD を「10/3(金)」形式に変換
  */
-export function getMonthsAgoDate(months: number): string {
-  const today = new Date();
-  const monthsAgo = new Date(today.getFullYear(), today.getMonth() - months, 1);
-  return formatDate(monthsAgo);
+export function formatDateLabel(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const wd = ["日", "月", "火", "水", "木", "金", "土"][new Date(y, m - 1, d).getDay()];
+  return `${m}/${d}(${wd})`;
 }
 
+/**
+ * ISO日時を「10/3 12:34」形式に変換
+ */
+export function formatDateTimeLabel(iso: string): string {
+  const dt = new Date(iso);
+  const hh = String(dt.getHours()).padStart(2, "0");
+  const mm = String(dt.getMinutes()).padStart(2, "0");
+  return `${dt.getMonth() + 1}/${dt.getDate()} ${hh}:${mm}`;
+}
