@@ -46,6 +46,27 @@ services:
       HOST_IP: "192.168.0.34"
       FRONTEND_URL: "https://household-app.vercel.app"
       ALLOW_SUBNETS: "192.168.0.0/24,172.16.0.0/12"
+      # Notion 連携（POST /notion/sync）。server/.env に書く
+      NOTION_TOKEN: ${NOTION_TOKEN:-}
+      NOTION_DATA_SOURCE_ID: ${NOTION_DATA_SOURCE_ID:-}
+
+  # =========================
+  # Notion 月次同期（毎月1日 6:00 JST に先月分を送る）
+  # =========================
+  notion-scheduler:
+    build: .
+    container_name: household-notion-scheduler
+    depends_on:
+      - db
+    volumes:
+      - .:/code
+    command: ["python", "-m", "app.jobs.notion_scheduler"]
+    restart: unless-stopped # PC再起動後も Docker Desktop の起動とともに動かす
+    environment:
+      PYTHONUNBUFFERED: "1"
+      DATABASE_URL: postgresql+psycopg://household:household@db:5432/household
+      NOTION_TOKEN: ${NOTION_TOKEN:?server/.env に NOTION_TOKEN を設定してください}
+      NOTION_DATA_SOURCE_ID: ${NOTION_DATA_SOURCE_ID:?server/.env に NOTION_DATA_SOURCE_ID を設定してください}
 
 # =========================
 # ボリューム定義

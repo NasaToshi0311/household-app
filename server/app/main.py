@@ -7,6 +7,7 @@ from app.routers.expenses import router as expenses_router
 from app.routers.stats import router as stats_router
 from app.routers.sync_qr import router as sync_qr_router
 from app.routers.summary import router as summary_router
+from app.routers.notion import router as notion_router
 from app.middleware.auth import APIKeyMiddleware
 from app.middleware.lan_only import LanOnlyMiddleware
 
@@ -66,3 +67,4 @@ app.include_router(expenses_router) # 支出ルーターを追加する
 app.include_router(stats_router) # 統計ルーターを追加する
 app.include_router(sync_qr_router) # 同期QRルーターを追加する
 app.include_router(summary_router) # 要約ルーターを追加する
+app.include_router(notion_router) # Notion同期ルーターを追加する

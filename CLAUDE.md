@@ -42,6 +42,13 @@ PCの Docker: household-api (FastAPI :8000) + household-db (PostgreSQL)
   - カーソル（`sync_cursor`）は取得上限時刻の5分前に設定し、取りこぼしを防ぐ。重複は内容比較で無視。
 - 削除: サーバーに保存済みのデータは論理削除（`op: "delete"` を同期）、未送信のデータはその場で物理削除。
 
+## Notion 連携
+
+- 月ごとのカテゴリ別合計・件数を Notion の data source に送る（`app/services/notion.py`, Notion-Version `2026-03-11`）。明細やメモは送らない。
+- `server/.env` の `NOTION_TOKEN` / `NOTION_DATA_SOURCE_ID` を使う。トークンはログやエラーメッセージに出さないこと。
+- 手動: `POST /notion/sync?month=YYYY-MM`（省略で先月, APIキー必須）。同じ月・カテゴリの行は更新し、支出が無くなったカテゴリは0にする。
+- 自動: compose の `notion-scheduler` サービスが毎月1日 6:00 JST に先月分を送る。PCが止まっていて逃した場合は、起動時に対象月の行が Notion に無ければ送る。
+
 ## 動作確認
 
 - `client/` で `npm run dev` → `http://localhost:5173`。localStorage に `household_api_base_url` / `household_api_key` / `setup_via_qr=1` を入れると、ローカルAPIにつながる。
