@@ -115,12 +115,6 @@ def _pages_for_month(token: str, data_source_id: str, month: str) -> list[dict]:
         body["start_cursor"] = res["next_cursor"]
 
 
-def month_already_synced(month: str) -> bool:
-    """Notion にその月の行が1件でもあれば True"""
-    token, data_source_id = _config()
-    return len(_pages_for_month(token, data_source_id, month)) > 0
-
-
 @dataclass
 class SyncResult:
     month: str

@@ -45,7 +45,8 @@ server/
 ├── docker-compose.yml      # Docker Compose設定
 ├── requirements.txt       # Python依存パッケージ
 ├── backup_db.ps1          # データベースバックアップスクリプト
-└── register_backup_task.ps1  # backup_db.ps1をタスクスケジューラに登録するスクリプト
+├── start_server.bat       # サーバーを起動する
+└── stop_server.bat        # バックアップとNotion送信のあと、サーバーを停止する
 ```
 
 フロントエンドは`server`では配信していません（Vercelでホスティング、`https://household-app.vercel.app`）。

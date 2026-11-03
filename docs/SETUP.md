@@ -86,16 +86,9 @@ cd server
 docker compose up -d --force-recreate api
 ```
 
-## データベースの自動バックアップ
+## サーバーの起動と停止
 
-毎日決まった時刻にDBをバックアップするよう設定できます。
-
-```powershell
-cd server
-.\register_backup_task.ps1
-```
-
-Windowsのタスクスケジューラに登録され、PCが起動していればDBをバックアップします（PCをこのために自動起動する設定は行いません）。詳細は [OPERATIONS.md](OPERATIONS.md) を参照してください。
+サーバーは同期したいときだけ起動します。`server/start_server.bat` で起動し、同期が終わったら `server/stop_server.bat` で停止します。停止時にDBのバックアップと Notion への送信も行います。詳細は [OPERATIONS.md](OPERATIONS.md) を参照してください。
 
 ## 動作確認
 

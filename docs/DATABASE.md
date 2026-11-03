@@ -302,15 +302,12 @@ except Exception:
 # 手動バックアップ
 docker compose exec -T db pg_dump -U household household > backup_$(date +%Y-%m-%d).sql
 
-# 自動バックアップ（PowerShellスクリプト、手動実行）
+# PowerShellスクリプトで実行（server/stop_server.bat でも停止時に実行される）
 cd server
 .\backup_db.ps1
-
-# 毎日自動実行するタスクをWindowsタスクスケジューラに登録（初回のみ）
-.\register_backup_task.ps1
 ```
 
-バックアップ先はOneDrive（`%USERPROFILE%\OneDrive\household-app-backup\db`）で、Gitには含まれません。30日より古いファイルは自動削除されます。詳細は [OPERATIONS.md](OPERATIONS.md) を参照してください。
+バックアップ先は `%USERPROFILE%\household-app-backup\db` で、Gitには含まれません。自動では削除しません。詳細は [OPERATIONS.md](OPERATIONS.md) を参照してください。
 
 ### 復元
 

@@ -456,36 +456,17 @@ docker compose exec db psql -U household -d household -c "SELECT client_uuid, CO
 
 ### バックアップが失敗する・作成されない
 
-**症状**: 自動バックアップ（タスクスケジューラ）を設定したのに、`expenses_YYYY-MM-DD.sql`が増えていない
+**症状**: `server/stop_server.bat` で「バックアップを取れなかった」と表示される、または `expenses_*.sql` が増えていない
 
 **確認手順**:
 
-1. **まずログを確認する**（原因の9割はここで分かります）
+1. **まずログを確認する**
    ```powershell
-   Get-Content "$env:USERPROFILE\OneDrive\household-app-backup\backup.log" -Tail 20
+   Get-Content "$env:USERPROFILE\household-app-backup\backup.log" -Tail 20
    ```
    - `OK: Backup saved to ...` → 正常に成功している
-   - `SKIP: household-db is not running.` → **これは異常ではありません**。サーバー（`docker compose up -d`）を起動していない時間帯にタスクが実行されると、エラーにせずスキップする仕様です。サーバーを起動してからタスクを手動実行するか、翌日の実行を待ってください
-   - `ERROR: Backup failed - ...` → pg_dump自体が失敗している。エラーメッセージの内容を確認
-
-2. **タスクスケジューラの実行結果を確認**
-   ```powershell
-   Get-ScheduledTask -TaskName 'HouseholdApp-DbBackup' | Get-ScheduledTaskInfo
-   ```
-   - `LastTaskResult` が `0` 以外の場合、スクリプト自体が実行できていない可能性がある（PowerShellの実行ポリシーなど）
-   - `LastRunTime` が想定より古い場合、タスクが登録されていない・無効化されている可能性がある
-
-3. **PowerShellの実行ポリシーを確認**
-   ```powershell
-   Get-ExecutionPolicy
-   ```
-   タスクは`-ExecutionPolicy Bypass`で実行されるため通常は問題にならないが、手動実行時にエラーになる場合はここを確認
-
-4. **タスクが登録されているか確認**
-   ```powershell
-   Get-ScheduledTask -TaskName 'HouseholdApp-DbBackup'
-   ```
-   登録されていない場合は `server/register_backup_task.ps1` を実行
+   - `SKIP: household-db is not running.` → サーバーが起動していない。`server/start_server.bat` で起動してから実行する
+   - `ERROR: Backup failed - ...` → バックアップ自体が失敗している。エラーメッセージの内容を確認
 
 **解決方法**:
 
@@ -493,16 +474,6 @@ docker compose exec db psql -U household -d household -c "SELECT client_uuid, CO
   ```powershell
   cd server
   .\backup_db.ps1
-  ```
-  （`household-db`が起動していれば`OK`、起動していなければ`SKIP`がログに記録される。どちらになるかで原因が分かる）
-- 実行ポリシーを変更する場合（管理者権限が必要）:
-  ```powershell
-  Set-ExecutionPolicy RemoteSigned
-  ```
-- タスクを登録し直す: `.\register_backup_task.ps1`（既存タスクは自動的に削除・再登録される）
-- 手動でバックアップを取る:
-  ```bash
-  docker compose exec -T db pg_dump -U household household > backup.sql
   ```
 
 詳細は [OPERATIONS.md](OPERATIONS.md) の「データベースバックアップ」も参照してください。

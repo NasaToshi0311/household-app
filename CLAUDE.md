@@ -15,8 +15,19 @@ PCの Docker: household-api (FastAPI :8000) + household-db (PostgreSQL)
 ```
 
 - `client/`: React + Vite + TypeScript の PWA。`master` に push すると Vercel が自動デプロイし、スマホは次回起動時に自動更新される。
-- `server/`: FastAPI。`docker compose up -d`（`server/` で実行）。ソースはボリュームマウント + `uvicorn --reload` なので、保存すると即反映される。
+- `server/`: FastAPI。ソースはボリュームマウント + `uvicorn --reload` なので、保存すると即反映される。
 - 同期先を https にしているのは、iPhone（Safari / WebKit）が https のページから http の通信をブロックするため（mixed content）。
+
+## サーバーの起動と停止
+
+- **サーバーは普段止めていて、同期したいときだけ起動する。** 常時起動を前提にしないこと。APIとDBに自動再起動は付けない。
+- 起動: `server/start_server.bat`。停止: `server/stop_server.bat`。
+- 停止時に、バックアップ → 先月分の Notion 送信 → `docker compose stop` の順で実行する。スマホの同期が終わってから停止する。
+
+## バックアップ
+
+- `server/backup_db.ps1` が `%USERPROFILE%\household-app-backup\db` に保存する。**自動では削除しない**（データを全部残すため）。
+- 実行環境によって日本語が文字化けするので、`pg_dump` の出力を PowerShell のパイプに通さないこと。
 
 ## Tailscale Funnel
 
@@ -47,7 +58,7 @@ PCの Docker: household-api (FastAPI :8000) + household-db (PostgreSQL)
 - 月ごとのカテゴリ別合計・件数を Notion の data source に送る（`app/services/notion.py`, Notion-Version `2026-03-11`）。明細やメモは送らない。
 - `server/.env` の `NOTION_TOKEN` / `NOTION_DATA_SOURCE_ID` を使う。トークンはログやエラーメッセージに出さないこと。
 - 手動: `POST /notion/sync?month=YYYY-MM`（省略で先月, APIキー必須）。同じ月・カテゴリの行は更新し、支出が無くなったカテゴリは0にする。
-- 自動: compose の `notion-scheduler` サービスが毎月1日 6:00 JST に先月分を送る。PCが止まっていて逃した場合は、起動時に対象月の行が Notion に無ければ送る。
+- 自動: `server/stop_server.bat` で停止するたびに先月分を送る。毎回送り直すので、遅れて同期した分も次の停止時に反映される。
 
 ## 動作確認
 

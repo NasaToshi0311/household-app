@@ -8,7 +8,6 @@ services:
   db:
     image: postgres:16 # PostgreSQLの公式イメージ（バージョン16）を使う
     container_name: household-db # コンテナの名前（docker ps で見やすくする）
-    restart: unless-stopped # PC再起動やクラッシュの後も自動で起動する
 
     # PostgreSQLの初期設定
     environment:
@@ -19,6 +18,11 @@ services:
       - db-data:/var/lib/postgresql/data # コンテナ内のDB保存場所を、名前付きボリュームに保存
     ports:
       - "127.0.0.1:5432:5432" # PC内からのみ接続可（LANの他機器からは接続不可）
+    healthcheck: # APIの起動前にDBの準備が終わるのを待つため
+      test: ["CMD-SHELL", "pg_isready -U household -d household"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
 
   # =========================
   # API（FastAPI想定）
@@ -27,9 +31,9 @@ services:
     # 今のディレクトリにある Dockerfile を使ってイメージを作る
     build: .
     container_name: household-api     # コンテナの名前（docker ps で見やすくする）
-    restart: unless-stopped # PC再起動やクラッシュの後も自動で起動する
-    depends_on: # DBコンテナが先に起動してからAPIを起動する
-      - db
+    depends_on: # DBの準備が終わってからAPIを起動する
+      db:
+        condition: service_healthy
     volumes:     # ソースコードの共有設定
       # PCのカレントディレクトリを、コンテナ内 /code にマウント
       # → コード変更が即反映される（開発用）
@@ -52,23 +56,6 @@ services:
       NOTION_TOKEN: ${NOTION_TOKEN:-}
       NOTION_DATA_SOURCE_ID: ${NOTION_DATA_SOURCE_ID:-}
 
-  # =========================
-  # Notion 月次同期（毎月1日 6:00 JST に先月分を送る）
-  # =========================
-  notion-scheduler:
-    build: .
-    container_name: household-notion-scheduler
-    depends_on:
-      - db
-    volumes:
-      - .:/code
-    command: ["python", "-m", "app.jobs.notion_scheduler"]
-    restart: unless-stopped # PC再起動後も Docker Desktop の起動とともに動かす
-    environment:
-      PYTHONUNBUFFERED: "1"
-      DATABASE_URL: postgresql+psycopg://household:household@db:5432/household
-      NOTION_TOKEN: ${NOTION_TOKEN:?server/.env に NOTION_TOKEN を設定してください}
-      NOTION_DATA_SOURCE_ID: ${NOTION_DATA_SOURCE_ID:?server/.env に NOTION_DATA_SOURCE_ID を設定してください}
 
 # =========================
 # ボリューム定義

@@ -402,7 +402,7 @@ npm run dev
 
 - クライアント: `master`にpushすると、Vercelが自動デプロイ（`https://household-app.vercel.app`）
 - サーバー: Dockerコンテナとして実行し、Tailscale Funnel経由でhttps公開
-- データベース: PostgreSQL（Dockerボリュームで永続化、`backup_db.ps1`＋タスクスケジューラで日次バックアップ）
+- データベース: PostgreSQL（Dockerボリュームで永続化、`stop_server.bat`で停止時にバックアップ）
 
 ## 今後の拡張可能性
 

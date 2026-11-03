@@ -106,7 +106,7 @@ PCの Docker: household-api (FastAPI :8000) + household-db (PostgreSQL)
 
 - APIキー認証により、APIキーを知らない第三者からのアクセスを防止しています
 - スマホのIndexedDBには全期間のデータが保持され、オフラインでも集計可能です
-- DBデータはローカル環境のため、`server/backup_db.ps1` による定期バックアップを設定してください（[docs/OPERATIONS.md](docs/OPERATIONS.md) 参照）
+- DBデータはローカル環境のため、`server/stop_server.bat` で停止するたびにバックアップを取ります（[docs/OPERATIONS.md](docs/OPERATIONS.md) 参照）
 - IndexedDBは自動的にバージョン管理され、スキーマ変更時は自動的にアップグレードされます
 
 ### PWA機能

@@ -47,42 +47,42 @@ cd server
 docker compose exec -T db pg_dump -U household household > expenses_YYYY-MM-DD.sql
 
 # 復元（戻したいファイル名を記載）
-docker compose exec -T db psql -U household -d household < expenses_YYYY-MM-DD.sql
+docker compose exec -T db psql -U household -d household < expenses_YYYY-MM-DD_HHMMSS.sql
 ```
 
-### 自動バックアップ（PowerShellスクリプト＋タスクスケジューラ）
+### サーバーの起動と停止
+
+サーバーは普段止めておき、同期したいときだけ起動します。
+
+1. `server/start_server.bat` をダブルクリックして起動する
+2. スマホで同期する
+3. `server/stop_server.bat` をダブルクリックして停止する
+
+停止時には次の順で実行されます。バックアップに失敗した場合は、サーバーを止めずに終了します。
+
+1. DBをバックアップする
+2. 先月分のカテゴリ別合計を Notion に送る（失敗しても次回の停止時に送り直す）
+3. サーバーを停止する
+
+### バックアップ
 
 `server/backup_db.ps1` を実行すると、以下の処理が行われます：
 
-- OneDriveの `household-app-backup/db` ディレクトリにバックアップを保存（Gitには含まれない）
-- 30日より古いSQLファイルを自動削除
-- ファイル名は `expenses_YYYY-MM-DD.sql` 形式
-- `household-db` コンテナが起動していない場合は、エラーにせずスキップし、その旨を `household-app-backup/backup.log` に記録する
-- 実行結果（成功・スキップ・失敗）はすべて `household-app-backup/backup.log` に記録される
+- `%USERPROFILE%\household-app-backup\db` にバックアップを保存（Gitには含まれない）
+- 自動では削除しない
+- ファイル名は `expenses_YYYY-MM-DD_HHMMSS.sql` 形式
+- `household-db` コンテナが起動していない場合は、エラーにせずスキップする
+- 実行結果（成功・スキップ・失敗）はすべて `household-app-backup\backup.log` に記録される
 
 ```powershell
 cd server
 .\backup_db.ps1
 ```
 
-**毎日自動実行する設定**:
+**実行結果の確認**:
 
 ```powershell
-cd server
-.\register_backup_task.ps1
-```
-
-Windowsのタスクスケジューラに `HouseholdApp-DbBackup` という名前のタスクが登録され、毎日12:00に実行されます。PCの電源を入れる自動化は行っていないため、PCが起動していない時間帯は単に実行されず、次にPCが起動したタイミングでは翌日の12:00まで待つ形になります（household-dbが起動していない場合は上記のとおりスキップされます）。
-
-- 状態確認: `Get-ScheduledTask -TaskName 'HouseholdApp-DbBackup' | Get-ScheduledTaskInfo`
-- 手動実行: `Start-ScheduledTask -TaskName 'HouseholdApp-DbBackup'`
-- 削除: `Unregister-ScheduledTask -TaskName 'HouseholdApp-DbBackup'`
-- 実行時刻を変更したい場合は `server/register_backup_task.ps1` 内の `New-ScheduledTaskTrigger -Daily -At "12:00"` を編集して再実行する（既存タスクは自動的に再登録される）
-
-**実行結果の確認**（ログファイル: `%USERPROFILE%\OneDrive\household-app-backup\backup.log`）:
-
-```powershell
-Get-Content "$env:USERPROFILE\OneDrive\household-app-backup\backup.log" -Tail 20
+Get-Content "$env:USERPROFILE\household-app-backup\backup.log" -Tail 20
 ```
 
 ログの各行は3パターン：
