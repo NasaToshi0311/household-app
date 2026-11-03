@@ -8,6 +8,7 @@ services:
   db:
     image: postgres:16 # PostgreSQLの公式イメージ（バージョン16）を使う
     container_name: household-db # コンテナの名前（docker ps で見やすくする）
+    restart: unless-stopped # PC再起動やクラッシュの後も自動で起動する
 
     # PostgreSQLの初期設定
     environment:
@@ -26,6 +27,7 @@ services:
     # 今のディレクトリにある Dockerfile を使ってイメージを作る
     build: .
     container_name: household-api     # コンテナの名前（docker ps で見やすくする）
+    restart: unless-stopped # PC再起動やクラッシュの後も自動で起動する
     depends_on: # DBコンテナが先に起動してからAPIを起動する
       - db
     volumes:     # ソースコードの共有設定
